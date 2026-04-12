@@ -1,7 +1,9 @@
-import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink } from '@trpc/client';
+import { createTRPCReact } from '@trpc/react-query';
 
-import type { AppRouter } from "../server/router";
+import { useAuthStore } from '@/store/auth';
+
+import type { AppRouter } from '../server/src/router';
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -9,8 +11,7 @@ const getBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
-  // Local development — use your machine's LAN IP when testing on device
-  return "http://localhost:3000";
+  return 'http://localhost:3000';
 };
 
 export const trpcClient = trpc.createClient({
@@ -18,8 +19,8 @@ export const trpcClient = trpc.createClient({
     httpBatchLink({
       url: `${getBaseUrl()}/trpc`,
       headers() {
-        // Token is injected here once auth is wired up
-        return {};
+        const token = useAuthStore.getState().token;
+        return token ? { Authorization: `Bearer ${token}` } : {};
       },
     }),
   ],
