@@ -1,0 +1,317 @@
+
+<style>
+  h2.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; }
+
+  .phase { margin-bottom: 12px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+  .phase-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; user-select: none; background: var(--color-background-secondary); }
+  .phase-header:hover { background: var(--color-background-tertiary); }
+  .phase-num { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
+  .phase-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); flex: 1; }
+  .phase-meta { font-size: 11px; color: var(--color-text-secondary); }
+  .chevron { font-size: 10px; color: var(--color-text-tertiary); transition: transform 0.2s; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .tasks { border-top: 0.5px solid var(--color-border-tertiary); }
+  .task { border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .task:last-child { border-bottom: none; }
+  .task-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px 9px 20px; cursor: pointer; }
+  .task-row:hover { background: var(--color-background-secondary); }
+  .check { width: 16px; height: 16px; border-radius: 4px; border: 0.5px solid var(--color-border-secondary); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .check.done { background: var(--color-background-success); border-color: var(--color-border-success); }
+  .check.done::after { content: ""; display: block; width: 8px; height: 5px; border-left: 1.5px solid var(--color-text-success); border-bottom: 1.5px solid var(--color-text-success); transform: rotate(-45deg) translate(1px, -1px); }
+  .task-label { font-size: 13px; color: var(--color-text-primary); flex: 1; }
+  .task-label.done { color: var(--color-text-secondary); text-decoration: line-through; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+
+  .subtasks { padding: 0 16px 8px 46px; }
+  .sub { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; }
+  .sub-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-border-secondary); flex-shrink: 0; margin-top: 6px; }
+  .sub-text { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+
+  .progress-bar { height: 3px; background: var(--color-border-tertiary); border-radius: 2px; margin: 0 16px 10px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .stat { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+  .stat-val { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+  .stat-lbl { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+
+  .p1-num { background: #EEEDFE; color: #534AB7; }
+  .p2-num { background: #E1F5EE; color: #0F6E56; }
+  .p3-num { background: #FAEEDA; color: #854F0B; }
+  .p4-num { background: #FAECE7; color: #993C1D; }
+  .p5-num { background: #F1EFE8; color: #5F5E5A; }
+
+  .p1-fill { background: #7F77DD; }
+  .p2-fill { background: #1D9E75; }
+  .p3-fill { background: #BA7517; }
+  .p4-fill { background: #D85A30; }
+  .p5-fill { background: #888780; }
+
+  .tag-must { background: var(--color-background-danger); color: var(--color-text-danger); }
+  .tag-setup { background: var(--color-background-info); color: var(--color-text-info); }
+  .tag-code { background: var(--color-background-warning); color: var(--color-text-warning); }
+  .tag-data { background: var(--color-background-success); color: var(--color-text-success); }
+
+  @media (prefers-color-scheme: dark) {
+    .p1-num { background: #26215C; color: #AFA9EC; }
+    .p2-num { background: #04342C; color: #5DCAA5; }
+    .p3-num { background: #412402; color: #EF9F27; }
+    .p4-num { background: #4A1B0C; color: #F0997B; }
+    .p5-num { background: #2C2C2A; color: #B4B2A9; }
+  }
+</style>
+
+<h2 class="sr-only">Foundation plan for the fitness app, organized into 5 phases with tasks and subtasks</h2>
+
+<div class="stats">
+  <div class="stat"><div class="stat-val" id="total-tasks">0</div><div class="stat-lbl">Total tasks</div></div>
+  <div class="stat"><div class="stat-val" id="done-count">0</div><div class="stat-lbl">Completed</div></div>
+  <div class="stat"><div class="stat-val" id="pct">0%</div><div class="stat-lbl">Progress</div></div>
+  <div class="stat"><div class="stat-val" id="phases-done">0/5</div><div class="stat-lbl">Phases done</div></div>
+</div>
+
+<div id="plan"></div>
+
+<script>
+const phases = [
+  {
+    id: 1, cls: "p1", label: "Project scaffold & tooling",
+    meta: "Start here",
+    tasks: [
+      { label: "Init Expo project with TypeScript template", tag: "setup", subs: [
+        "Run: npx create-expo-app@latest fitapp --template expo-template-blank-typescript",
+        "Configure app.json: name, slug, bundle ID for iOS + Android",
+        "Set up .env file and add to .gitignore"
+      ]},
+      { label: "Configure NativeWind v4", tag: "setup", subs: [
+        "Install nativewind and tailwindcss",
+        "Add babel plugin and tailwind.config.js",
+        "Test className on a View and Text component"
+      ]},
+      { label: "Install and configure Gluestack UI v2", tag: "setup", subs: [
+        "Install @gluestack-ui/themed and dependencies",
+        "Wrap app in GluestackUIProvider with custom theme tokens",
+        "Define brand colors, font sizes, spacing scale"
+      ]},
+      { label: "Set up Expo Router for navigation", tag: "setup", subs: [
+        "Create app/ directory structure with (tabs) layout",
+        "Define screens: dashboard, food, workout, profile",
+        "Add bottom tab navigator with icons"
+      ]},
+      { label: "Configure ESLint, Prettier, and Husky", tag: "setup", subs: [
+        "eslint-config-expo + prettier with tailwind plugin",
+        "Husky pre-commit hook running lint + typecheck"
+      ]},
+      { label: "Set up GitHub repo and branch strategy", tag: "setup", subs: [
+        "main (production), dev (staging), feature/* branches",
+        "Add README with setup instructions",
+        "Set up GitHub Actions: lint + typecheck on PR"
+      ]}
+    ]
+  },
+  {
+    id: 2, cls: "p2", label: "Backend & database setup",
+    meta: "Core infrastructure",
+    tasks: [
+      { label: "Provision PostgreSQL database", tag: "setup", subs: [
+        "Create Railway project and add PostgreSQL plugin",
+        "Copy DATABASE_URL to .env",
+        "Test connection with psql or Prisma"
+      ]},
+      { label: "Init Prisma and write schema", tag: "code", subs: [
+        "npx prisma init",
+        "Translate L3 schema into schema.prisma",
+        "Run first migration: npx prisma migrate dev --name init"
+      ]},
+      { label: "Set up Node.js + tRPC server", tag: "code", subs: [
+        "Create /server directory with Express + tRPC adapter",
+        "Define base router with health check route",
+        "Connect Prisma client to tRPC context"
+      ]},
+      { label: "Configure NextAuth for authentication", tag: "code", subs: [
+        "Email/password provider with bcrypt hashing",
+        "Google OAuth provider setup",
+        "Apple OAuth (required for App Store)",
+        "JWT session strategy + refresh token logic"
+      ]},
+      { label: "Set up Redis for caching", tag: "setup", subs: [
+        "Add Redis plugin on Railway",
+        "Install ioredis, create cache utility wrapper",
+        "Define TTL constants per data type"
+      ]},
+      { label: "Deploy backend to Railway", tag: "setup", subs: [
+        "Add Dockerfile or use Railway's Nixpacks builder",
+        "Set all env vars in Railway dashboard",
+        "Verify health check endpoint responds"
+      ]}
+    ]
+  },
+  {
+    id: 3, cls: "p3", label: "Auth & onboarding flow",
+    meta: "First user experience",
+    tasks: [
+      { label: "Build sign up / sign in screens", tag: "code", subs: [
+        "Email + password form with Zod validation",
+        "Google and Apple SSO buttons",
+        "Error states and loading indicators"
+      ]},
+      { label: "Build onboarding wizard", tag: "code", subs: [
+        "Step 1: Name, age, sex",
+        "Step 2: Height and weight (metric/imperial toggle)",
+        "Step 3: Goal selection — bulking / maintenance / cutting",
+        "Step 4: Activity level selector",
+        "Step 5: TDEE calculation preview + macro breakdown",
+        "Save to USER and USER_SETTINGS tables on completion"
+      ]},
+      { label: "Implement TDEE calculation logic", tag: "code", subs: [
+        "Mifflin-St Jeor formula for BMR",
+        "Apply activity multiplier",
+        "Apply goal modifier: +300–500 bulk, -300–500 cut",
+        "Calculate protein (2g/kg), carbs and fat from remainder"
+      ]},
+      { label: "Auth state management + protected routes", tag: "code", subs: [
+        "Zustand auth store: user, token, isLoading",
+        "Expo Router redirect: unauthenticated → /login",
+        "Persist session with expo-secure-store"
+      ]}
+    ]
+  },
+  {
+    id: 4, cls: "p4", label: "Data seeding",
+    meta: "Populate exercise & food library",
+    tasks: [
+      { label: "Import exercise library from wger.de", tag: "data", subs: [
+        "Fetch all exercises from wger.de REST API",
+        "Map to EXERCISE and MUSCLE schema fields",
+        "Write Prisma seed script: npx prisma db seed",
+        "Verify ~800 exercises with muscle group assignments"
+      ]},
+      { label: "Set up food API integrations", tag: "code", subs: [
+        "Open Food Facts: barcode lookup wrapper",
+        "USDA FoodData Central: text search wrapper",
+        "Normalise both responses to FOOD_ITEM shape",
+        "Cache results in Redis with 24hr TTL"
+      ]},
+      { label: "Seed default routines", tag: "data", subs: [
+        "Push / Pull / Legs (6-day)",
+        "Upper / Lower (4-day)",
+        "Full Body (3-day)",
+        "Mark as system routines (user_id = null)"
+      ]}
+    ]
+  },
+  {
+    id: 5, cls: "p5", label: "CI/CD & environment config",
+    meta: "Ship safely from day one",
+    tasks: [
+      { label: "Configure GitHub Actions pipelines", tag: "setup", subs: [
+        "PR check: lint, typecheck, unit tests",
+        "Merge to dev: deploy to staging on Railway",
+        "Merge to main: deploy to production on Railway"
+      ]},
+      { label: "Set up Sentry for error tracking", tag: "setup", subs: [
+        "Install @sentry/react-native",
+        "Configure DSN in app.config.ts",
+        "Test crash reporting in dev build"
+      ]},
+      { label: "Configure Expo EAS Build", tag: "setup", subs: [
+        "npx eas build:configure",
+        "Set up eas.json: development, preview, production profiles",
+        "Generate first development build for physical device testing"
+      ]},
+      { label: "Document environment variables", tag: "setup", subs: [
+        "Create .env.example with all required keys",
+        "Add setup section to README",
+        "Store secrets in Railway + GitHub Actions secrets"
+      ]}
+    ]
+  }
+];
+
+let checked = {};
+
+function countAll() {
+  let total = 0;
+  phases.forEach(p => p.tasks.forEach(() => total++));
+  return total;
+}
+
+function countDone() {
+  return Object.values(checked).filter(Boolean).length;
+}
+
+function phasesDone() {
+  return phases.filter(p => p.tasks.every((t, ti) => checked[p.id + '-' + ti])).length;
+}
+
+function updateStats() {
+  const total = countAll();
+  const done = countDone();
+  document.getElementById('total-tasks').textContent = total;
+  document.getElementById('done-count').textContent = done;
+  document.getElementById('pct').textContent = Math.round(done / total * 100) + '%';
+  document.getElementById('phases-done').textContent = phasesDone() + '/5';
+}
+
+function phaseProgress(p) {
+  const done = p.tasks.filter((t, ti) => checked[p.id + '-' + ti]).length;
+  return Math.round(done / p.tasks.length * 100);
+}
+
+function toggleTask(phaseId, taskIdx) {
+  const key = phaseId + '-' + taskIdx;
+  checked[key] = !checked[key];
+  render();
+  updateStats();
+}
+
+function togglePhase(phaseId) {
+  const el = document.getElementById('tasks-' + phaseId);
+  const chev = document.getElementById('chev-' + phaseId);
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  chev.className = 'chevron' + (open ? '' : ' open');
+}
+
+function tagHtml(tag) {
+  const map = { must: 'tag-must', setup: 'tag-setup', code: 'tag-code', data: 'tag-data' };
+  return `<span class="tag ${map[tag] || ''}">${tag}</span>`;
+}
+
+function render() {
+  const container = document.getElementById('plan');
+  container.innerHTML = phases.map(p => {
+    const pct = phaseProgress(p);
+    const tasksHtml = p.tasks.map((t, ti) => {
+      const key = p.id + '-' + ti;
+      const done = checked[key];
+      const subsHtml = t.subs ? `<div class="subtasks">${t.subs.map(s => `<div class="sub"><div class="sub-dot"></div><span class="sub-text">${s}</span></div>`).join('')}</div>` : '';
+      return `<div class="task">
+        <div class="task-row" onclick="toggleTask(${p.id}, ${ti})">
+          <div class="check ${done ? 'done' : ''}"></div>
+          <span class="task-label ${done ? 'done' : ''}">${t.label}</span>
+          ${tagHtml(t.tag)}
+        </div>
+        ${subsHtml}
+      </div>`;
+    }).join('');
+
+    return `<div class="phase">
+      <div class="phase-header" onclick="togglePhase(${p.id})">
+        <div class="phase-num ${p.cls}-num">${p.id}</div>
+        <span class="phase-title">${p.label}</span>
+        <span class="phase-meta">${p.meta} · ${pct}%</span>
+        <span class="chevron open" id="chev-${p.id}">▶</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill ${p.cls}-fill" style="width:${pct}%"></div></div>
+      <div class="tasks" id="tasks-${p.id}">${tasksHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+render();
+updateStats();
+</script>
