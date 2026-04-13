@@ -1,8 +1,7 @@
-import type { PrismaClient } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 
 import type { OnboardingInput } from '../schemas';
-
+import { users } from './auth.service';
 import type { SafeUser } from './auth.service';
 
 const ACTIVITY_MULTIPLIERS: Record<OnboardingInput['activityLevel'], number> = {
@@ -19,16 +18,9 @@ const GOAL_ADJUSTMENTS: Record<OnboardingInput['goalMode'], number> = {
   cut: -400,
 };
 
-function calcTargets(input: OnboardingInput): {
-  tdeeCalories: number;
-  calorieTarget: number;
-  proteinTargetG: number;
-  carbsTargetG: number;
-  fatTargetG: number;
-} {
+function calcTargets(input: OnboardingInput) {
   const { weightKg, heightCm, age, sex, activityLevel, goalMode } = input;
 
-  // Mifflin-St Jeor BMR
   const bmr =
     sex === 'male'
       ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
@@ -47,49 +39,17 @@ function calcTargets(input: OnboardingInput): {
 export async function completeOnboard(
   userId: string,
   input: OnboardingInput,
-  db: PrismaClient,
+  _db: unknown,
 ): Promise<SafeUser> {
+  const user = users.get(userId);
+  if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
+
   const targets = calcTargets(input);
 
-  const user = await db.user.update({
-    where: { id: userId },
-    data: {
-      goalMode: input.goalMode,
-      weightKg: input.weightKg,
-      heightCm: input.heightCm,
-      age: input.age,
-      sex: input.sex,
-      activityLevel: input.activityLevel,
-      ...targets,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      avatarUrl: true,
-      goalMode: true,
-      tdeeCalories: true,
-      calorieTarget: true,
-      proteinTargetG: true,
-      carbsTargetG: true,
-      fatTargetG: true,
-    },
-  });
-
-  if (!user) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
-  }
-
-  await db.goalHistory.create({
-    data: {
-      userId,
-      goalMode: input.goalMode,
-      calorieTarget: targets.calorieTarget,
-      proteinTargetG: targets.proteinTargetG,
-      carbsTargetG: targets.carbsTargetG,
-      fatTargetG: targets.fatTargetG,
-      startedAt: new Date(),
-    },
+  Object.assign(user, {
+    goalMode: input.goalMode,
+    isOnboarded: true,
+    ...targets,
   });
 
   return {

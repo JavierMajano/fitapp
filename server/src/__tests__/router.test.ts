@@ -1,11 +1,37 @@
 import { TRPCError } from '@trpc/server';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import type { Context } from '../context';
 import { appRouter, createCallerFactory } from '../router';
+import { clearUsers, users } from '../services/auth.service';
 
 // signUp and signIn both sign JWTs — provide a secret for tests
 process.env.JWT_SECRET = 'test-secret-for-unit-tests';
+
+// Seed the in-memory store with the fixture user used by makeAuthCtx.
+// Called in beforeEach so auth.me, completeOnboard, and protected-procedure
+// tests always find userId='user-uuid-1' in the Map.
+function seedFixtureUser() {
+  clearUsers();
+  users.set('user-uuid-1', {
+    id: 'user-uuid-1',
+    email: 'user@example.com',
+    name: 'Test User',
+    avatarUrl: null,
+    goalMode: null,
+    tdeeCalories: null,
+    calorieTarget: null,
+    proteinTargetG: null,
+    carbsTargetG: null,
+    fatTargetG: null,
+    isOnboarded: false,
+    password: '',
+  });
+}
+
+beforeEach(() => {
+  seedFixtureUser();
+});
 
 // ─── Mock context ─────────────────────────────────────────────────────────────
 

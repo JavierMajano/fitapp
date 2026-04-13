@@ -403,7 +403,8 @@ fitapp/
 ├── config/
 │   └── gluestack.ts          -- full token config (colors, spacing, radii, fonts)
 ├── lib/
-│   └── trpc.ts               -- tRPC client with Bearer token injection
+│   ├── trpc.ts               -- tRPC client with Bearer token injection
+│   └── units.ts              -- unit conversion utilities (kg↔lbs, cm↔in, toMetric*, bounds)
 ├── server/
 │   ├── prisma/
 │   │   ├── schema.prisma     -- full L3 schema (all tables)
@@ -424,7 +425,7 @@ fitapp/
 │   └── auth.ts               -- Zustand auth store with expo-secure-store persistence
 ├── global.css                -- NativeWind v4 required CSS entry point
 ├── metro.config.js           -- NativeWind withNativeWind wrapper
-├── .env.example              -- all required env vars documented
+├── .env.railway              -- Railway variable mappings template
 ├── .eslintrc.js              -- eslint-config-expo + prettier + import order
 ├── .prettierrc               -- prettier + tailwind class sorter
 ├── .husky/
@@ -479,6 +480,39 @@ Fixed by:
 
 Always restart with: `npx expo start --clear`
 
+### 5. lightningcss native binary missing on 32-bit Windows (win32-ia32)
+
+lightningcss 1.19–1.27 ships no ia32 Windows binary. Both copies
+(`node_modules/lightningcss/node/index.js` and
+`node_modules/react-native-css-interop/node_modules/lightningcss/node/index.js`)
+need a third catch fallback to the WASM build:
+
+```bash
+npm install lightningcss-wasm@1.27.0
+```
+
+Then patch both `index.js` files — add a third catch after the existing two:
+```js
+} catch (err2) { module.exports = require('lightningcss-wasm'); }
+```
+
+### 6. Prisma binary engine required on 32-bit Node
+
+Add to `server/prisma/schema.prisma` generator block:
+```prisma
+engineType = "binary"
+```
+
+Set env vars when running Prisma CLI:
+```bash
+PRISMA_CLI_QUERY_ENGINE_TYPE=binary PRISMA_CLIENT_ENGINE_TYPE=binary npx prisma generate
+```
+
+### 7. expo-secure-store is native-only (no web support)
+
+`expo-secure-store` throws on web. `store/auth.ts` uses a `Platform.OS === 'web'`
+check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` calls.
+
 ---
 
 ## Foundation plan — 6 phases
@@ -513,7 +547,7 @@ Always restart with: `npx expo start --clear`
 - **Sign-up screen** (`app/(auth)/sign-up.tsx`) — email/password + Google SSO
 - **Onboarding wizard** (`app/(auth)/onboarding.tsx`) — 5 steps:
   - Step 0: Name (pre-filled from sign-up)
-  - Step 1: Weight (kg), Height (cm), Age, Sex toggle
+  - Step 1: Unit system dropdown (metric/imperial, auto-converts on toggle), Weight, Height, Age, Sex
   - Step 2: Goal mode cards — bulk (amber), maintenance (blue), cut (red)
   - Step 3: Activity level — 5 option cards
   - Step 4: TDEE preview — calorie target + protein/carbs/fat breakdown chips
@@ -524,6 +558,9 @@ Always restart with: `npx expo start --clear`
 - **Google SSO** — client: `expo-auth-session`; server: `google-auth-library` token verification → find-or-create user by email
 - tRPC procedures: `auth.signUp`, `auth.signIn`, `auth.me`, `auth.googleSignIn`, `user.completeOnboard`
 - Apple Sign In **intentionally skipped** — requires Apple Developer Program ($99/year); can be added later
+- **Unit system dropdown** (`lib/units.ts` + `onboarding.tsx`) — metric/imperial toggle on the measurements step; fields auto-convert on switch; server always receives kg/cm
+- **Auth store web compat** (`store/auth.ts`) — `Platform.OS === 'web'` check; uses `localStorage` on web, `expo-secure-store` on native
+- **Auth + onboarding flow tests** (`server/src/__tests__/flows/auth-onboarding.flow.test.ts`) — 5 Vitest flow tests covering the full signUp → signIn → completeOnboard path and all error branches; 112 tests total across 6 files
 
 #### Remaining steps to finish Phase 3
 
@@ -574,7 +611,7 @@ Always restart with: `npx expo start --clear`
 
 ## Current status
 
-Phases 1, 2, and 3 (code) complete. Google OAuth credentials created. All code on branch `feature/phase-3-auth-onboarding` (based on `dev`).
+Phases 1, 2, and 3 (code) complete. Unit system dropdown (imperial/metric auto-conversion) added to onboarding. 112 Vitest tests passing (6 files) including full signUp→onboard flow tests. All code on branch `feature/phase-3-auth-onboarding` (based on `dev`). Google OAuth credentials created.
 Repo: https://github.com/JavierMajano/fitapp
 
 Remaining before Phase 3 is fully live: add credentials to `.env` + Railway → run Prisma migration → merge PR → e2e test.

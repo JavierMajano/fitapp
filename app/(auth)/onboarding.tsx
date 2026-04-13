@@ -12,6 +12,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { trpc } from '@/lib/trpc';
+import {
+  type UnitSystem,
+  cmToIn,
+  inToCm,
+  kgToLbs,
+  lbsToKg,
+  toMetricHeight,
+  toMetricWeight,
+  WEIGHT_BOUNDS,
+  HEIGHT_BOUNDS,
+} from '@/lib/units';
 import { useAuthStore } from '@/store/auth';
 import type { GoalMode, User } from '@/store/auth';
 
@@ -32,9 +43,9 @@ interface FormData {
 
 // ── TDEE preview (mirrors server logic) ───────────────────────────────────
 
-function calcPreview(data: FormData) {
-  const weight = parseFloat(data.weightKg);
-  const height = parseFloat(data.heightCm);
+function calcPreview(data: FormData, unit: UnitSystem) {
+  const weight = toMetricWeight(data.weightKg, unit);
+  const height = toMetricHeight(data.heightCm, unit);
   const age = parseInt(data.age, 10);
   if (!weight || !height || !age) return null;
 
@@ -136,6 +147,68 @@ function MacroChip({
   );
 }
 
+const UNIT_OPTIONS: { value: UnitSystem; label: string }[] = [
+  { value: 'metric', label: 'Metric  (kg / cm)' },
+  { value: 'imperial', label: 'Imperial  (lbs / in)' },
+];
+
+function UnitDropdown({
+  value,
+  onChange,
+  hasError,
+}: {
+  value: UnitSystem;
+  onChange: (u: UnitSystem) => void;
+  hasError?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = UNIT_OPTIONS.find((o) => o.value === value)!;
+
+  return (
+    <View className="relative mb-4">
+      <Text className="mb-2 text-sm text-zinc-400">Units</Text>
+
+      {/* Trigger */}
+      <TouchableOpacity
+        onPress={() => setOpen((v) => !v)}
+        className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${
+          hasError ? 'border-red-500 bg-red-500/5' : 'border-surface-border bg-surface-card'
+        }`}
+      >
+        <Text className="text-base text-white">{selected.label}</Text>
+        <Text className="text-zinc-400">{open ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+
+      {/* Dropdown list */}
+      {open && (
+        <View className="absolute left-0 right-0 top-[72px] z-10 overflow-hidden rounded-xl border border-surface-border bg-surface-card shadow-lg">
+          {UNIT_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              onPress={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`flex-row items-center justify-between px-4 py-3.5 ${
+                opt.value === value ? 'bg-brand-400/10' : ''
+              }`}
+            >
+              <Text
+                className={`text-base ${opt.value === value ? 'font-medium text-brand-400' : 'text-zinc-300'}`}
+              >
+                {opt.label}
+              </Text>
+              {opt.value === value && (
+                <Text className="text-brand-400">✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 const TOTAL_STEPS = 5;
@@ -154,6 +227,7 @@ export default function OnboardingScreen() {
     goalMode: 'maintenance',
     activityLevel: 'moderate',
   });
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
   const [error, setError] = useState('');
 
   const completeOnboard = trpc.user.completeOnboard.useMutation({
@@ -180,6 +254,17 @@ export default function OnboardingScreen() {
     setError('');
   };
 
+  const handleUnitToggle = (newUnit: UnitSystem) => {
+    if (newUnit === unitSystem) return;
+    setForm((prev) => ({
+      ...prev,
+      weightKg: newUnit === 'imperial' ? kgToLbs(prev.weightKg) : lbsToKg(prev.weightKg),
+      heightCm: newUnit === 'imperial' ? cmToIn(prev.heightCm) : inToCm(prev.heightCm),
+    }));
+    setUnitSystem(newUnit);
+    setError('');
+  };
+
   const validateStep = (): boolean => {
     if (step === 0 && !form.name.trim()) {
       setError('Please enter your name.');
@@ -189,12 +274,17 @@ export default function OnboardingScreen() {
       const w = parseFloat(form.weightKg);
       const h = parseFloat(form.heightCm);
       const a = parseInt(form.age, 10);
-      if (!w || w <= 0 || w > 500) {
-        setError('Enter a valid weight (kg).');
+      const wMax = WEIGHT_BOUNDS[unitSystem].max;
+      const hMax = HEIGHT_BOUNDS[unitSystem].max;
+      const wUnit = unitSystem === 'imperial' ? 'lbs' : 'kg';
+      const hUnit = unitSystem === 'imperial' ? 'in' : 'cm';
+
+      if (!w || w <= 0 || w > wMax) {
+        setError(`Enter a valid weight (${wUnit}).`);
         return false;
       }
-      if (!h || h <= 0 || h > 300) {
-        setError('Enter a valid height (cm).');
+      if (!h || h <= 0 || h > hMax) {
+        setError(`Enter a valid height (${hUnit}).`);
         return false;
       }
       if (!a || a < 13 || a > 120) {
@@ -219,15 +309,15 @@ export default function OnboardingScreen() {
     setError('');
     completeOnboard.mutate({
       goalMode: form.goalMode,
-      weightKg: parseFloat(form.weightKg),
-      heightCm: parseFloat(form.heightCm),
+      weightKg: toMetricWeight(form.weightKg, unitSystem),
+      heightCm: toMetricHeight(form.heightCm, unitSystem),
       age: parseInt(form.age, 10),
       sex: form.sex,
       activityLevel: form.activityLevel,
     });
   };
 
-  const preview = step === 4 ? calcPreview(form) : null;
+  const preview = step === 4 ? calcPreview(form, unitSystem) : null;
 
   const goalColors: Record<GoalMode, string> = {
     bulk: '#f59e0b',
@@ -276,12 +366,21 @@ export default function OnboardingScreen() {
                 Used to calculate your calorie targets.
               </Text>
 
+              {/* Unit system dropdown */}
+              <UnitDropdown
+                value={unitSystem}
+                onChange={handleUnitToggle}
+                hasError={false}
+              />
+
               <View className="mb-4 flex-row gap-3">
                 <View className="flex-1">
-                  <Text className="mb-2 text-sm text-zinc-400">Weight (kg)</Text>
+                  <Text className="mb-2 text-sm text-zinc-400">
+                    {unitSystem === 'metric' ? 'Weight (kg)' : 'Weight (lbs)'}
+                  </Text>
                   <TextInput
                     className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
-                    placeholder="70"
+                    placeholder={unitSystem === 'metric' ? '70' : '154'}
                     placeholderTextColor="#52525b"
                     keyboardType="decimal-pad"
                     value={form.weightKg}
@@ -289,10 +388,12 @@ export default function OnboardingScreen() {
                   />
                 </View>
                 <View className="flex-1">
-                  <Text className="mb-2 text-sm text-zinc-400">Height (cm)</Text>
+                  <Text className="mb-2 text-sm text-zinc-400">
+                    {unitSystem === 'metric' ? 'Height (cm)' : 'Height (in)'}
+                  </Text>
                   <TextInput
                     className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
-                    placeholder="175"
+                    placeholder={unitSystem === 'metric' ? '175' : '69'}
                     placeholderTextColor="#52525b"
                     keyboardType="decimal-pad"
                     value={form.heightCm}

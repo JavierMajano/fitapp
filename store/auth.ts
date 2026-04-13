@@ -1,7 +1,24 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 
 const TOKEN_KEY = 'fitapp_auth_token';
+
+// expo-secure-store is native-only; fall back to localStorage on web
+const storage = {
+  getItem: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(localStorage.getItem(key))
+      : SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(void localStorage.setItem(key, value))
+      : SecureStore.setItemAsync(key, value),
+  deleteItem: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(void localStorage.removeItem(key))
+      : SecureStore.deleteItemAsync(key),
+};
 
 export type GoalMode = 'bulk' | 'maintenance' | 'cut';
 
@@ -37,7 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: async () => {
     try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
+      const token = await storage.getItem(TOKEN_KEY);
       set({ token: token ?? null, isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -45,7 +62,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setAuth: async (user: User, token: string) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await storage.setItem(TOKEN_KEY, token);
     set({ user, token, isOnboarded: user.goalMode !== null });
   },
 
@@ -54,7 +71,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setOnboarded: (value: boolean) => set({ isOnboarded: value }),
 
   signOut: async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await storage.deleteItem(TOKEN_KEY);
     set({ user: null, token: null, isOnboarded: false });
   },
 }));

@@ -84,4 +84,4 @@ Zustand auth store (`/store/auth.ts`) holds `user`, `token`, `isLoading`, `isOnb
 
 ### Environment
 
-Copy `.env.example` to `.env`. Key variable: `EXPO_PUBLIC_API_URL`.
+Copy `.env.railway` to `.env`. Key variable: `EXPO_PUBLIC_API_URL`.

@@ -1,15 +1,15 @@
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = db;
-}
+// Mock DB for development preview — services use in-memory storage instead
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const db = new Proxy({} as any, {
+  get: (_t, prop) =>
+    new Proxy(
+      {},
+      {
+        get: () =>
+          () =>
+            Promise.reject(
+              new Error(`Mock DB: ${String(prop)} is not implemented. Use in-memory services.`),
+            ),
+      },
+    ),
+});

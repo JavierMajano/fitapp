@@ -4,14 +4,14 @@
     {
       "name": "Expo Dev Server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
+      "runtimeArgs": ["run", "web", "--", "--clear"],
       "port": 8081
     },
     {
       "name": "tRPC API Server",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "server",
+      "runtimeArgs": ["run", "dev:server"],
+      "autoPort": false,
       "port": 3000
     },
     {
@@ -19,7 +19,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "db:studio"],
       "cwd": "server",
-      "port": 5555
+      "autoPort": false,
+      "port": 5555,
+      "env": {
+        "PRISMA_CLIENT_ENGINE_TYPE": "binary",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary"
+      }
     }
   ]
 }
