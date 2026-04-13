@@ -5,7 +5,9 @@
       "Bash(npm test:*)",
       "Bash(npm run:*)",
       "Bash(npx expo:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")"
     ]
   }
 }

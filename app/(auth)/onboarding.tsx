@@ -198,9 +198,7 @@ function UnitDropdown({
               >
                 {opt.label}
               </Text>
-              {opt.value === value && (
-                <Text className="text-brand-400">✓</Text>
-              )}
+              {opt.value === value && <Text className="text-brand-400">✓</Text>}
             </TouchableOpacity>
           ))}
         </View>
@@ -367,11 +365,7 @@ export default function OnboardingScreen() {
               </Text>
 
               {/* Unit system dropdown */}
-              <UnitDropdown
-                value={unitSystem}
-                onChange={handleUnitToggle}
-                hasError={false}
-              />
+              <UnitDropdown value={unitSystem} onChange={handleUnitToggle} hasError={false} />
 
               <View className="mb-4 flex-row gap-3">
                 <View className="flex-1">

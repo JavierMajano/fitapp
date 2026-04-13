@@ -18,5 +18,5 @@ module.exports = {
       },
     ],
   },
-  ignorePatterns: ['node_modules/', '.expo/', 'dist/'],
+  ignorePatterns: ['node_modules/', '.expo/', 'dist/', 'server/'],
 };

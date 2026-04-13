@@ -425,7 +425,7 @@ fitapp/
 │   └── auth.ts               -- Zustand auth store with expo-secure-store persistence
 ├── global.css                -- NativeWind v4 required CSS entry point
 ├── metro.config.js           -- NativeWind withNativeWind wrapper
-├── .env.railway              -- Railway variable mappings template
+├── .env.example              -- all required env vars documented
 ├── .eslintrc.js              -- eslint-config-expo + prettier + import order
 ├── .prettierrc               -- prettier + tailwind class sorter
 ├── .husky/
@@ -565,7 +565,7 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 #### Remaining steps to finish Phase 3
 
 - [x] Google OAuth credentials created (Google Cloud Console) — web + iOS client IDs in hand
-- [ ] **Add credentials to `.env`** locally:
+- [x] **Add credentials to `.env`** locally:
   ```
   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<your-web-client-id>
   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=<your-ios-client-id>
@@ -574,8 +574,8 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
   DATABASE_URL=<railway-postgres-url>
   REDIS_URL=<railway-redis-url>
   ```
-- [ ] **Add the same vars to Railway** (staging service environment) — Settings → Variables
-- [ ] **Run Prisma migration** on Railway staging:
+- [x] **Add the same vars to Railway** (staging service environment) — Settings → Variables
+- [x] **Run Prisma migration** on Railway staging:
   ```bash
   cd server && npx prisma migrate deploy
   ```
