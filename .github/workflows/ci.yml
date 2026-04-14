@@ -29,6 +29,32 @@ jobs:
       - name: Run TypeScript check
         run: npm run typecheck
 
+  server-typecheck:
+    name: Server Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Server lint
+        run: npm run lint
+        working-directory: server
+
+      - name: Server TypeScript check
+        run: npm run typecheck
+        working-directory: server
+
   expo-doctor:
     name: Expo Doctor
     runs-on: ubuntu-latest

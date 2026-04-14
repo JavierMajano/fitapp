@@ -3,6 +3,8 @@ import type { ExpressAuthConfig } from '@auth/express';
 import Apple from '@auth/express/providers/apple';
 import Credentials from '@auth/express/providers/credentials';
 import Google from '@auth/express/providers/google';
+import type { JWT } from '@auth/core/jwt';
+import type { Session, User } from '@auth/core/types';
 import bcrypt from 'bcryptjs';
 
 import { db } from './db';
@@ -25,7 +27,7 @@ export const authConfig: ExpressAuthConfig = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials: Record<string, unknown> | undefined) {
         const parsed = signInSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
@@ -42,12 +44,12 @@ export const authConfig: ExpressAuthConfig = {
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.id = user.id;
+    jwt({ token, user }: { token: JWT; user?: User }) {
+      if (user?.id) token['id'] = user.id;
       return token;
     },
-    session({ session, token }) {
-      if (token.id) session.user.id = token.id as string;
+    session({ session, token }: { session: Session; token: JWT }) {
+      if (token['id'] && session.user) session.user.id = token['id'] as string;
       return session;
     },
   },

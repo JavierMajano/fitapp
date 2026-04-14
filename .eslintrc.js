@@ -18,5 +18,5 @@ module.exports = {
       },
     ],
   },
-  ignorePatterns: ['node_modules/', '.expo/', 'dist/', 'server/'],
+  ignorePatterns: ['node_modules/', '.expo/', 'dist/', 'server/', 'expo-env.d.ts'],
 };
