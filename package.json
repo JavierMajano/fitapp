@@ -59,7 +59,14 @@
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.6.1",
     "tailwindcss": "^3.4.3",
-    "typescript": "~5.3.3"
+    "typescript": "~5.7.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "typescript"
+      ]
+    }
   },
   "lint-staged": {
     "{app,components,lib,store,config,types,hooks}/**/*.{ts,tsx}": [
