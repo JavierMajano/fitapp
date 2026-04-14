@@ -5,11 +5,10 @@ export const db = new Proxy({} as any, {
     new Proxy(
       {},
       {
-        get: () =>
-          () =>
-            Promise.reject(
-              new Error(`Mock DB: ${String(prop)} is not implemented. Use in-memory services.`),
-            ),
+        get: () => () =>
+          Promise.reject(
+            new Error(`Mock DB: ${String(prop)} is not implemented. Use in-memory services.`),
+          ),
       },
     ),
 });
