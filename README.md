@@ -44,7 +44,7 @@ npm install
 ### 2. Environment variables
 
 ```bash
-cp .env.example .env
+cp .env.railway .env
 # Fill in all values in .env
 ```
 
@@ -128,7 +128,7 @@ fitapp/
 ├── store/
 │   └── auth.ts             # Zustand auth store
 ├── types/                  # Shared TypeScript types
-├── .env.example
+├── .env.railway
 ├── app.json
 ├── babel.config.js
 ├── eas.json

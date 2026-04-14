@@ -1,6 +1,26 @@
-import { create } from "zustand";
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import { create } from 'zustand';
 
-export type GoalMode = "bulk" | "maintenance" | "cut";
+const TOKEN_KEY = 'fitapp_auth_token';
+
+// expo-secure-store is native-only; fall back to localStorage on web
+const storage = {
+  getItem: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(localStorage.getItem(key))
+      : SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(void localStorage.setItem(key, value))
+      : SecureStore.setItemAsync(key, value),
+  deleteItem: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(void localStorage.removeItem(key))
+      : SecureStore.deleteItemAsync(key),
+};
+
+export type GoalMode = 'bulk' | 'maintenance' | 'cut';
 
 export interface User {
   id: string;
@@ -19,22 +39,39 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   isOnboarded: boolean;
+  hydrate: () => Promise<void>;
+  setAuth: (user: User, token: string) => Promise<void>;
   setUser: (user: User) => void;
-  setToken: (token: string) => void;
   setOnboarded: (value: boolean) => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
-  isLoading: false,
+  isLoading: true,
   isOnboarded: false,
 
-  setUser: (user) => set({ user }),
-  setToken: (token) => set({ token }),
-  setOnboarded: (value) => set({ isOnboarded: value }),
+  hydrate: async () => {
+    try {
+      const token = await storage.getItem(TOKEN_KEY);
+      set({ token: token ?? null, isLoading: false });
+    } catch {
+      set({ isLoading: false });
+    }
+  },
 
-  signOut: () =>
-    set({ user: null, token: null, isOnboarded: false }),
+  setAuth: async (user: User, token: string) => {
+    await storage.setItem(TOKEN_KEY, token);
+    set({ user, token, isOnboarded: user.goalMode !== null });
+  },
+
+  setUser: (user: User) => set({ user, isOnboarded: user.goalMode !== null }),
+
+  setOnboarded: (value: boolean) => set({ isOnboarded: value }),
+
+  signOut: async () => {
+    await storage.deleteItem(TOKEN_KEY);
+    set({ user: null, token: null, isOnboarded: false });
+  },
 }));

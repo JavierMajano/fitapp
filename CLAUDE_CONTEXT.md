@@ -380,35 +380,49 @@ Macro split (starting point):
 
 ---
 
-## Project structure (Phase 1 scaffold — complete)
+## Project structure (Phase 3 — current state)
 
 ```
 fitapp/
 ├── app/
 │   ├── (auth)/
 │   │   ├── _layout.tsx       -- auth stack navigator
-│   │   ├── sign-in.tsx       -- placeholder
-│   │   ├── sign-up.tsx       -- placeholder
-│   │   └── onboarding.tsx    -- placeholder
+│   │   ├── sign-in.tsx       -- email/password + Google SSO + Apple SSO (iOS)
+│   │   ├── sign-up.tsx       -- email/password + Google SSO + Apple SSO (iOS)
+│   │   └── onboarding.tsx    -- 5-step wizard: name → measurements → goal → activity → TDEE preview
 │   ├── (tabs)/
 │   │   ├── _layout.tsx       -- bottom tab navigator + custom icons (5 tabs)
 │   │   ├── index.tsx         -- dashboard (placeholder)
-│   │   ├── food.tsx          -- food log with date nav (placeholder)
-│   │   ├── workout.tsx       -- workout with date nav (placeholder)
+│   │   ├── food.tsx          -- food log with DateNav component
+│   │   ├── workout.tsx       -- workout with DateNav component
 │   │   ├── progress.tsx      -- progress charts (placeholder)
 │   │   └── profile.tsx       -- profile (placeholder)
-│   └── _layout.tsx           -- root layout: global.css import + providers
-├── components/               -- shared UI (to be built)
+│   └── _layout.tsx           -- root layout + AuthGuard (protected routes) + hydrate()
+├── components/
+│   └── DateNav.tsx           -- reusable prev/next day navigation bar
 ├── config/
 │   └── gluestack.ts          -- full token config (colors, spacing, radii, fonts)
-├── hooks/                    -- custom hooks (to be built)
 ├── lib/
-│   └── trpc.ts               -- tRPC client setup
+│   ├── trpc.ts               -- tRPC client with Bearer token injection
+│   └── units.ts              -- unit conversion utilities (kg↔lbs, cm↔in, toMetric*, bounds)
 ├── server/
-│   └── router.ts             -- tRPC router stub (all routes pre-declared)
+│   ├── prisma/
+│   │   ├── schema.prisma     -- full L3 schema (all tables)
+│   │   └── seed.ts           -- seed stub (Phase 4 adds exercise library)
+│   └── src/
+│       ├── auth.ts           -- Auth.js config (Google + Apple providers)
+│       ├── context.ts        -- tRPC context: JWT Bearer + Auth.js cookie session
+│       ├── db.ts             -- Prisma client singleton
+│       ├── index.ts          -- Express server (tRPC + Auth.js routes + health)
+│       ├── redis.ts          -- ioredis client singleton
+│       ├── router.ts         -- tRPC router: auth, user, food, workout procedures
+│       ├── schemas.ts        -- Zod schemas (signUp, signIn, onboarding)
+│       └── services/
+│           ├── auth.service.ts    -- signUp, signIn, getSafeUser (JWT-based)
+│           ├── social.service.ts  -- googleSignIn, appleSignIn (token verification + find-or-create)
+│           └── user.service.ts    -- completeOnboard + TDEE/macro calculation
 ├── store/
-│   └── auth.ts               -- Zustand auth store (user, token, goalMode)
-├── types/                    -- shared types (to be built)
+│   └── auth.ts               -- Zustand auth store with expo-secure-store persistence
 ├── global.css                -- NativeWind v4 required CSS entry point
 ├── metro.config.js           -- NativeWind withNativeWind wrapper
 ├── .env.example              -- all required env vars documented
@@ -424,9 +438,9 @@ fitapp/
 ├── app.json                  -- Expo config (bundleIdentifier needs updating)
 ├── babel.config.js           -- NativeWind + Reanimated plugins
 ├── eas.json                  -- EAS build profiles: dev, preview, production
-├── package.json              -- all dependencies (see known issues below)
+├── package.json              -- all dependencies
 ├── tailwind.config.js        -- darkMode: 'class' + custom theme tokens
-├── tsconfig.json             -- strict mode + path aliases
+├── tsconfig.json             -- strict mode + path aliases (excludes server/)
 └── README.md                 -- setup guide + branch strategy
 ```
 
@@ -466,6 +480,39 @@ Fixed by:
 
 Always restart with: `npx expo start --clear`
 
+### 5. lightningcss native binary missing on 32-bit Windows (win32-ia32)
+
+lightningcss 1.19–1.27 ships no ia32 Windows binary. Both copies
+(`node_modules/lightningcss/node/index.js` and
+`node_modules/react-native-css-interop/node_modules/lightningcss/node/index.js`)
+need a third catch fallback to the WASM build:
+
+```bash
+npm install lightningcss-wasm@1.27.0
+```
+
+Then patch both `index.js` files — add a third catch after the existing two:
+```js
+} catch (err2) { module.exports = require('lightningcss-wasm'); }
+```
+
+### 6. Prisma binary engine required on 32-bit Node
+
+Add to `server/prisma/schema.prisma` generator block:
+```prisma
+engineType = "binary"
+```
+
+Set env vars when running Prisma CLI:
+```bash
+PRISMA_CLI_QUERY_ENGINE_TYPE=binary PRISMA_CLIENT_ENGINE_TYPE=binary npx prisma generate
+```
+
+### 7. expo-secure-store is native-only (no web support)
+
+`expo-secure-store` throws on web. `store/auth.ts` uses a `Platform.OS === 'web'`
+check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` calls.
+
 ---
 
 ## Foundation plan — 6 phases
@@ -481,26 +528,61 @@ Always restart with: `npx expo start --clear`
 - GitHub Actions CI/CD pipelines
 - EAS build config
 
-### Phase 2 — Backend & database setup (NEXT)
+### Phase 2 — Backend & database setup ✅ COMPLETE
 
-- Provision PostgreSQL on Railway
-- Init Prisma and write full schema from L3 spec above
-  - Include edited_at on SESSION_SET and FOOD_LOG_ENTRY
-- Set up Node.js + tRPC server
-- Configure NextAuth (email, Google, Apple)
-- Set up Redis
-- Deploy backend to Railway
+- Full Prisma schema (`server/prisma/schema.prisma`) — all L3 tables including edited_at fields
+- Node.js + Express + tRPC v11 server (`server/src/`)
+- JWT-based auth via `jsonwebtoken` (30-day tokens, Bearer header on mobile)
+- Auth.js (`@auth/express`) configured for Google OAuth provider (cookie sessions for web)
+- Dual session resolution in tRPC context: Bearer JWT → Auth.js cookie fallback
+- Redis client via ioredis (`server/src/redis.ts`)
+- 110 unit tests passing (Vitest) covering schemas, services, and router procedures
+- Server deployed to Railway staging (via `dev` branch CI/CD)
 
-### Phase 3 — Auth & onboarding flow
+### Phase 3 — Auth & onboarding flow ✅ CODE COMPLETE — deployment steps remaining
 
-- Sign up / sign in screens
-- 5-step onboarding wizard (name → measurements → goal → activity → TDEE preview)
-- TDEE calculation logic (Mifflin-St Jeor — see above)
-- Auth state with Zustand + expo-secure-store
-- Protected routes via Expo Router
-- Reusable date navigation component (prev/next day bar) for Food + Workout screens
+#### What's built
 
-### Phase 4 — Data seeding
+- **Sign-in screen** (`app/(auth)/sign-in.tsx`) — email/password + Google SSO
+- **Sign-up screen** (`app/(auth)/sign-up.tsx`) — email/password + Google SSO
+- **Onboarding wizard** (`app/(auth)/onboarding.tsx`) — 5 steps:
+  - Step 0: Name (pre-filled from sign-up)
+  - Step 1: Unit system dropdown (metric/imperial, auto-converts on toggle), Weight, Height, Age, Sex
+  - Step 2: Goal mode cards — bulk (amber), maintenance (blue), cut (red)
+  - Step 3: Activity level — 5 option cards
+  - Step 4: TDEE preview — calorie target + protein/carbs/fat breakdown chips
+- **TDEE calculation** (`server/src/services/user.service.ts`) — Mifflin-St Jeor BMR × activity multiplier + goal adjustment + macro split
+- **Auth store** (`store/auth.ts`) — Zustand with `expo-secure-store` persistence; hydrates JWT on app launch
+- **AuthGuard** (`app/_layout.tsx`) — protects routes; redirects unauthenticated → sign-in, onboarding-incomplete → onboarding, authenticated → tabs
+- **DateNav component** (`components/DateNav.tsx`) — prev/next day bar; wired into Food + Workout tabs
+- **Google SSO** — client: `expo-auth-session`; server: `google-auth-library` token verification → find-or-create user by email
+- tRPC procedures: `auth.signUp`, `auth.signIn`, `auth.me`, `auth.googleSignIn`, `user.completeOnboard`
+- Apple Sign In **intentionally skipped** — requires Apple Developer Program ($99/year); can be added later
+- **Unit system dropdown** (`lib/units.ts` + `onboarding.tsx`) — metric/imperial toggle on the measurements step; fields auto-convert on switch; server always receives kg/cm
+- **Auth store web compat** (`store/auth.ts`) — `Platform.OS === 'web'` check; uses `localStorage` on web, `expo-secure-store` on native
+- **Auth + onboarding flow tests** (`server/src/__tests__/flows/auth-onboarding.flow.test.ts`) — 5 Vitest flow tests covering the full signUp → signIn → completeOnboard path and all error branches; 112 tests total across 6 files
+
+#### Remaining steps to finish Phase 3
+
+- [x] Google OAuth credentials created (Google Cloud Console) — web + iOS client IDs in hand
+- [x] **Add credentials to `.env`** locally:
+  ```
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<your-web-client-id>
+  EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=<your-ios-client-id>
+  GOOGLE_CLIENT_ID=<your-web-client-id>   # used server-side to verify tokens
+  JWT_SECRET=<random-secret>
+  DATABASE_URL=<railway-postgres-url>
+  REDIS_URL=<railway-redis-url>
+  ```
+- [x] **Add the same vars to Railway** (staging service environment) — Settings → Variables
+- [x] **Run Prisma migration** on Railway staging:
+  ```bash
+  cd server && npx prisma migrate deploy
+  ```
+- [ ] **Merge feature branch → dev** — open PR from `feature/phase-3-auth-onboarding` → `dev`, let CI pass, merge
+- [ ] **Test end-to-end** — sign up with email, complete onboarding, sign out, sign in with Google
+
+### Phase 4 — Data seeding (NEXT)
 
 - Import exercise library from wger.de into EXERCISE + MUSCLE tables
 - Wire up Open Food Facts + USDA food API wrappers
@@ -529,10 +611,11 @@ Always restart with: `npx expo start --clear`
 
 ## Current status
 
-Phase 1 scaffold complete. All known issues fixed and documented above.
+Phases 1, 2, and 3 (code) complete. Unit system dropdown (imperial/metric auto-conversion) added to onboarding. 112 Vitest tests passing (6 files) including full signUp→onboard flow tests. All code on branch `feature/phase-3-auth-onboarding` (based on `dev`). Google OAuth credentials created.
 Repo: https://github.com/JavierMajano/fitapp
 
-Next task: Phase 2 — backend, Prisma schema, tRPC server.
+Remaining before Phase 3 is fully live: add credentials to `.env` + Railway → run Prisma migration → merge PR → e2e test.
+Next code phase: Phase 4 — data seeding (exercise library, food APIs, default routines).
 
 ---
 

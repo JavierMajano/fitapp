@@ -14,7 +14,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.fitapp",
+      "bundleIdentifier": "com.fitappco.fitapp",
       "buildNumber": "1"
     },
     "android": {
@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
       },
-      "package": "com.yourname.fitapp",
+      "package": "com.fitappco.fitapp",
       "versionCode": 1
     },
     "web": {

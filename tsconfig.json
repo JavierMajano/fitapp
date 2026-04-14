@@ -13,11 +13,19 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "config/**/*.ts",
+    "hooks/**/*.ts",
+    "lib/**/*.ts",
+    "store/**/*.ts",
+    "types/**/*.ts",
     ".expo/types/**/*.d.ts",
-    "expo-env.d.ts",
     ".expo/types/**/*.ts",
+    "expo-env.d.ts",
     "nativewind-env.d.ts"
-  ]
+  ],
+  "exclude": ["node_modules", "server"]
 }
