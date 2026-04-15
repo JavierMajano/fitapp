@@ -32,15 +32,13 @@ jobs:
 
       - name: Deploy to Railway (staging)
         if: github.ref == 'refs/heads/dev'
-        run: |
-          echo "Deploying service: ${{ vars.RAILWAY_SERVICE_NAME }}"
-          railway up server/ --service ${{ vars.RAILWAY_SERVICE_NAME }}
+        run: railway up server/ --project-id ${{ secrets.RAILWAY_PROJECT_ID_STAGING }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
 
       - name: Deploy to Railway (production)
         if: github.ref == 'refs/heads/main'
-        run: railway up server/ --service ${{ vars.RAILWAY_SERVICE_NAME }}
+        run: railway up server/ --project-id ${{ secrets.RAILWAY_PROJECT_ID_PROD }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
