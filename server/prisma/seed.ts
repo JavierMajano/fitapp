@@ -1,15 +1,21 @@
+/**
+ * Prisma seed entry-point.
+ *
+ * Delegates to src/seed/exercise-seed.ts so the implementation is type-checked
+ * by the project's TypeScript config and is unit-testable without a database.
+ */
+
 import { PrismaClient } from '@prisma/client';
+
+import { seedExercises, seedMuscles, seedRoutines } from '../src/seed/exercise-seed';
 
 const db = new PrismaClient();
 
 async function main() {
-  console.warn('Seeding database...');
-
-  // Phase 4 will add:
-  //  - Exercise library from wger.de (~800 exercises + muscle groups)
-  //  - Default routines: PPL (6-day), Upper/Lower (4-day), Full Body (3-day)
-  //  - Food item cache warm-up
-
+  console.warn('Seeding database…');
+  await seedMuscles(db);
+  await seedExercises(db);
+  await seedRoutines(db);
   console.warn('Seed complete.');
 }
 
