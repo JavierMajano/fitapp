@@ -312,11 +312,18 @@ describe('food.search', () => {
 });
 
 describe('food.byBarcode', () => {
-  const caller = createCaller(makeCtx());
+  it('returns null when barcode is not found and network is unavailable', async () => {
+    const redis = {
+      get: vi.fn().mockResolvedValue(null),
+      setex: vi.fn().mockResolvedValue('OK'),
+    };
+    const caller = createCaller(makeCtx({ redis: redis as never }));
+    vi.spyOn(global, 'fetch').mockRejectedValue(new Error('Network unavailable'));
 
-  it('returns null (stub)', async () => {
     const result = await caller.food.byBarcode({ barcode: '1234567890' });
+
     expect(result).toBeNull();
+    vi.restoreAllMocks();
   });
 });
 
