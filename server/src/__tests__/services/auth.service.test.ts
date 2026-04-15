@@ -89,6 +89,12 @@ describe('authService.signIn', () => {
       authService.signIn({ email: 'ghost@example.com', password: FIXTURE.password }, {}),
     ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
+
+  it('throws UNAUTHORIZED for wrong password', async () => {
+    await expect(
+      authService.signIn({ email: FIXTURE.email, password: 'wrong-password' }, {}),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
 });
 
 // ─── getSafeUser ──────────────────────────────────────────────────────────────

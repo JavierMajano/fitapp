@@ -492,6 +492,7 @@ npm install lightningcss-wasm@1.27.0
 ```
 
 Then patch both `index.js` files — add a third catch after the existing two:
+
 ```js
 } catch (err2) { module.exports = require('lightningcss-wasm'); }
 ```
@@ -499,14 +500,22 @@ Then patch both `index.js` files — add a third catch after the existing two:
 ### 6. Prisma binary engine required on 32-bit Node
 
 Add to `server/prisma/schema.prisma` generator block:
+
 ```prisma
 engineType = "binary"
 ```
 
 Set env vars when running Prisma CLI:
+
 ```bash
 PRISMA_CLI_QUERY_ENGINE_TYPE=binary PRISMA_CLIENT_ENGINE_TYPE=binary npx prisma generate
 ```
+
+### 8. auth.signIn was not validating passwords (fixed)
+
+`signIn` in `server/src/services/auth.service.ts` was returning a token for any password.
+Fixed by hashing with `bcrypt.hash(password, 10)` on `signUp` and comparing with `bcrypt.compare` on `signIn`.
+`bcryptjs` was already a declared dependency — no new packages needed.
 
 ### 7. expo-secure-store is native-only (no web support)
 
@@ -539,7 +548,7 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 - 110 unit tests passing (Vitest) covering schemas, services, and router procedures
 - Server deployed to Railway staging (via `dev` branch CI/CD)
 
-### Phase 3 — Auth & onboarding flow ✅ CODE COMPLETE — deployment steps remaining
+### Phase 3 — Auth & onboarding flow ✅ COMPLETE
 
 #### What's built
 
@@ -560,33 +569,16 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 - Apple Sign In **intentionally skipped** — requires Apple Developer Program ($99/year); can be added later
 - **Unit system dropdown** (`lib/units.ts` + `onboarding.tsx`) — metric/imperial toggle on the measurements step; fields auto-convert on switch; server always receives kg/cm
 - **Auth store web compat** (`store/auth.ts`) — `Platform.OS === 'web'` check; uses `localStorage` on web, `expo-secure-store` on native
-- **Auth + onboarding flow tests** (`server/src/__tests__/flows/auth-onboarding.flow.test.ts`) — 5 Vitest flow tests covering the full signUp → signIn → completeOnboard path and all error branches; 112 tests total across 6 files
-
-#### Remaining steps to finish Phase 3
-
-- [x] Google OAuth credentials created (Google Cloud Console) — web + iOS client IDs in hand
-- [x] **Add credentials to `.env`** locally:
-  ```
-  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<your-web-client-id>
-  EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=<your-ios-client-id>
-  GOOGLE_CLIENT_ID=<your-web-client-id>   # used server-side to verify tokens
-  JWT_SECRET=<random-secret>
-  DATABASE_URL=<railway-postgres-url>
-  REDIS_URL=<railway-redis-url>
-  ```
-- [x] **Add the same vars to Railway** (staging service environment) — Settings → Variables
-- [x] **Run Prisma migration** on Railway staging:
-  ```bash
-  cd server && npx prisma migrate deploy
-  ```
-- [ ] **Merge feature branch → dev** — open PR from `feature/phase-3-auth-onboarding` → `dev`, let CI pass, merge
-- [ ] **Test end-to-end** — sign up with email, complete onboarding, sign out, sign in with Google
+- **Auth + onboarding flow tests** (`server/src/__tests__/flows/auth-onboarding.flow.test.ts`) — 5 Vitest flow tests covering the full signUp → signIn → completeOnboard path and all error branches; 113 tests total across 6 files
+- **Password hashing** (`server/src/services/auth.service.ts`) — `bcryptjs` (already a dependency); `signUp` hashes with `bcrypt.hash(password, 10)`; `signIn` validates with `bcrypt.compare` — wrong password throws `UNAUTHORIZED`
+- **Playwright E2E suite** (`C:/tmp/playwright-test-phase3.js`) — 23 tests covering backend API (health, auth, TDEE) and Expo Web UI (AuthGuard redirect, sign-in/sign-up screens, onboarding Steps 0–2); all 23 pass
 
 ### Phase 4 — Data seeding (NEXT)
 
-- Import exercise library from wger.de into EXERCISE + MUSCLE tables
-- Wire up Open Food Facts + USDA food API wrappers
+- Import exercise library from wger.de into EXERCISE + MUSCLE tables (`server/prisma/seed.ts`)
+- Wire up Open Food Facts + USDA food API wrappers (cache responses in Redis with 24hr TTL)
 - Seed 3 default routines: PPL (6-day), Upper/Lower (4-day), Full Body (3-day)
+- tRPC procedures to implement: `food.search`, `food.byBarcode`, `workout.listRoutines`, `workout.startSession`, `workout.logSet`, `workout.endSession`
 
 ### Phase 5 — CI/CD & environment config
 
@@ -611,11 +603,10 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 
 ## Current status
 
-Phases 1, 2, and 3 (code) complete. Unit system dropdown (imperial/metric auto-conversion) added to onboarding. 112 Vitest tests passing (6 files) including full signUp→onboard flow tests. All code on branch `feature/phase-3-auth-onboarding` (based on `dev`). Google OAuth credentials created.
+Phases 1, 2, and 3 fully complete. 113 Vitest tests passing (6 files). Playwright E2E suite: 23/23 passing. Password hashing with bcryptjs in place. Google OAuth credentials configured. Prisma migration deployed to Railway staging.
 Repo: https://github.com/JavierMajano/fitapp
 
-Remaining before Phase 3 is fully live: add credentials to `.env` + Railway → run Prisma migration → merge PR → e2e test.
-Next code phase: Phase 4 — data seeding (exercise library, food APIs, default routines).
+Next code phase: Phase 4 — data seeding (exercise library from wger.de, food API wrappers, default routines).
 
 ---
 
