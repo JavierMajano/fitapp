@@ -32,13 +32,13 @@ jobs:
 
       - name: Deploy to Railway (staging)
         if: github.ref == 'refs/heads/dev'
-        run: railway up --service fitapp-backend
+        run: railway up server/ --service ${{ vars.RAILWAY_SERVICE_NAME }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
 
       - name: Deploy to Railway (production)
         if: github.ref == 'refs/heads/main'
-        run: railway up --service fitapp-backend
+        run: railway up server/ --service ${{ vars.RAILWAY_SERVICE_NAME }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
