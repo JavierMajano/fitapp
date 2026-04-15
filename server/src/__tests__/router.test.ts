@@ -4,6 +4,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import type { Context } from '../context';
 import { appRouter, createCallerFactory } from '../router';
 import { clearUsers, users } from '../services/auth.service';
+import { clearAll as clearWorkout, seedRoutine } from '../services/workout.service';
 
 // signUp and signIn both sign JWTs — provide a secret for tests
 process.env.JWT_SECRET = 'test-secret-for-unit-tests';
@@ -31,6 +32,7 @@ function seedFixtureUser() {
 
 beforeEach(() => {
   seedFixtureUser();
+  clearWorkout();
 });
 
 // ─── Mock context ─────────────────────────────────────────────────────────────
@@ -385,21 +387,25 @@ describe('workout.listRoutines', () => {
 });
 
 describe('workout.startSession — input validation', () => {
-  const caller = createCaller(makeAuthCtx());
-
-  it('accepts no routineId', async () => {
+  it('accepts no routineId and returns a session with userId', async () => {
+    const caller = createCaller(makeAuthCtx());
     const result = await caller.workout.startSession({});
-    expect(result).toEqual({ todo: true });
+    expect(result).toMatchObject({ userId: 'user-uuid-1', endedAt: null });
+    expect(result.id).toBeTruthy();
   });
 
-  it('accepts valid routineId UUID', async () => {
-    const result = await caller.workout.startSession({
-      routineId: '550e8400-e29b-41d4-a716-446655440000',
+  it('accepts valid routineId UUID when routine exists', async () => {
+    const routine = seedRoutine({
+      name: 'Test Routine',
+      id: '550e8400-e29b-41d4-a716-446655440000',
     });
-    expect(result).toEqual({ todo: true });
+    const caller = createCaller(makeAuthCtx());
+    const result = await caller.workout.startSession({ routineId: routine.id });
+    expect(result).toMatchObject({ routineId: routine.id, name: routine.name });
   });
 
   it('rejects non-UUID routineId', async () => {
+    const caller = createCaller(makeAuthCtx());
     await expect(caller.workout.startSession({ routineId: 'not-a-uuid' })).rejects.toThrow(
       TRPCError,
     );
@@ -407,66 +413,93 @@ describe('workout.startSession — input validation', () => {
 });
 
 describe('workout.logSet — input validation', () => {
-  const caller = createCaller(makeAuthCtx());
+  const exerciseId = '660e8400-e29b-41d4-a716-446655440001';
 
-  const validSet = {
-    sessionId: '550e8400-e29b-41d4-a716-446655440000',
-    exerciseId: '660e8400-e29b-41d4-a716-446655440001',
-    setNumber: 1,
-    weightKg: 100,
-    reps: 8,
-  };
-
-  it('accepts valid set', async () => {
-    const result = await caller.workout.logSet(validSet);
-    expect(result).toEqual({ todo: true });
+  it('accepts valid set and returns SessionSet shape', async () => {
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    const result = await caller.workout.logSet({
+      sessionId,
+      exerciseId,
+      setNumber: 1,
+      weightKg: 100,
+      reps: 8,
+    });
+    expect(result).toMatchObject({ sessionId, exerciseId, setNumber: 1, completed: true });
   });
 
   it('accepts set without optional fields', async () => {
-    const { weightKg: _wk, reps: _r, ...minimal } = validSet;
-    const result = await caller.workout.logSet(minimal);
-    expect(result).toEqual({ todo: true });
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    const result = await caller.workout.logSet({ sessionId, exerciseId, setNumber: 1 });
+    expect(result).toMatchObject({ sessionId, setNumber: 1, completed: true });
+    expect(result.weightKg).toBeNull();
+    expect(result.reps).toBeNull();
   });
 
   it('rejects setNumber of zero', async () => {
-    await expect(caller.workout.logSet({ ...validSet, setNumber: 0 })).rejects.toThrow(TRPCError);
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: 0 })).rejects.toThrow(
+      TRPCError,
+    );
   });
 
   it('rejects negative setNumber', async () => {
-    await expect(caller.workout.logSet({ ...validSet, setNumber: -1 })).rejects.toThrow(TRPCError);
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: -1 })).rejects.toThrow(
+      TRPCError,
+    );
   });
 
   it('rejects non-integer setNumber', async () => {
-    await expect(caller.workout.logSet({ ...validSet, setNumber: 1.5 })).rejects.toThrow(TRPCError);
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: 1.5 })).rejects.toThrow(
+      TRPCError,
+    );
   });
 
   it('rejects negative weightKg', async () => {
-    await expect(caller.workout.logSet({ ...validSet, weightKg: -10 })).rejects.toThrow(TRPCError);
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    await expect(
+      caller.workout.logSet({ sessionId, exerciseId, setNumber: 1, weightKg: -10 }),
+    ).rejects.toThrow(TRPCError);
   });
 
   it('accepts zero weightKg (bodyweight exercise)', async () => {
-    const result = await caller.workout.logSet({ ...validSet, weightKg: 0 });
-    expect(result).toEqual({ todo: true });
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    const result = await caller.workout.logSet({
+      sessionId,
+      exerciseId,
+      setNumber: 1,
+      weightKg: 0,
+    });
+    expect(result).toMatchObject({ weightKg: 0 });
   });
 
   it('rejects non-UUID sessionId', async () => {
-    await expect(caller.workout.logSet({ ...validSet, sessionId: 'bad-id' })).rejects.toThrow(
-      TRPCError,
-    );
+    const caller = createCaller(makeAuthCtx());
+    await expect(
+      caller.workout.logSet({ sessionId: 'bad-id', exerciseId, setNumber: 1 }),
+    ).rejects.toThrow(TRPCError);
   });
 });
 
 describe('workout.endSession — input validation', () => {
-  const caller = createCaller(makeAuthCtx());
-
-  it('accepts valid sessionId UUID', async () => {
-    const result = await caller.workout.endSession({
-      sessionId: '550e8400-e29b-41d4-a716-446655440000',
-    });
-    expect(result).toEqual({ todo: true });
+  it('accepts valid sessionId and sets endedAt', async () => {
+    const caller = createCaller(makeAuthCtx());
+    const { id: sessionId } = await caller.workout.startSession({});
+    const result = await caller.workout.endSession({ sessionId });
+    expect(result.endedAt).toBeInstanceOf(Date);
+    expect(result.id).toBe(sessionId);
   });
 
   it('rejects non-UUID sessionId', async () => {
+    const caller = createCaller(makeAuthCtx());
     await expect(caller.workout.endSession({ sessionId: 'not-a-uuid' })).rejects.toThrow(TRPCError);
   });
 });

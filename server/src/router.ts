@@ -7,6 +7,7 @@ import * as authService from './services/auth.service';
 import * as foodService from './services/food.service';
 import * as socialService from './services/social.service';
 import * as userService from './services/user.service';
+import * as workoutService from './services/workout.service';
 
 const t = initTRPC.context<Context>().create();
 
@@ -74,11 +75,16 @@ export const appRouter = router({
   }),
 
   workout: router({
-    listRoutines: publicProcedure.query(() => []),
+    listRoutines: publicProcedure.query(async ({ ctx }) => {
+      const userId = ctx.session?.user?.id ?? null;
+      return workoutService.listRoutines(userId, ctx.db);
+    }),
 
     startSession: protectedProcedure
       .input(z.object({ routineId: z.string().uuid().optional() }))
-      .mutation(() => ({ todo: true })),
+      .mutation(async ({ input, ctx }) => {
+        return workoutService.startSession(ctx.userId, input, ctx.db);
+      }),
 
     logSet: protectedProcedure
       .input(
@@ -90,11 +96,15 @@ export const appRouter = router({
           reps: z.number().int().positive().optional(),
         }),
       )
-      .mutation(() => ({ todo: true })),
+      .mutation(async ({ input, ctx }) => {
+        return workoutService.logSet(ctx.userId, input, ctx.db);
+      }),
 
     endSession: protectedProcedure
       .input(z.object({ sessionId: z.string().uuid() }))
-      .mutation(() => ({ todo: true })),
+      .mutation(async ({ input, ctx }) => {
+        return workoutService.endSession(ctx.userId, input, ctx.db);
+      }),
   }),
 });
 
