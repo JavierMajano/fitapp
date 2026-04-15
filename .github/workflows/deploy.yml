@@ -27,15 +27,18 @@ jobs:
         run: npm ci
         working-directory: server
 
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
       - name: Deploy to Railway (staging)
         if: github.ref == 'refs/heads/dev'
-        run: npx @railway/cli up --service fitapp-backend
+        run: railway up --service fitapp-backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
 
       - name: Deploy to Railway (production)
         if: github.ref == 'refs/heads/main'
-        run: npx @railway/cli up --service fitapp-backend
+        run: railway up --service fitapp-backend
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
