@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Context } from './context';
 import { signUpSchema, signInSchema, onboardingSchema } from './schemas';
 import * as authService from './services/auth.service';
+import * as foodService from './services/food.service';
 import * as socialService from './services/social.service';
 import * as userService from './services/user.service';
 
@@ -53,9 +54,13 @@ export const appRouter = router({
   }),
 
   food: router({
-    search: publicProcedure.input(z.object({ query: z.string().min(1) })).query(() => []),
+    search: publicProcedure
+      .input(z.object({ query: z.string().min(1) }))
+      .query(async ({ input, ctx }) => foodService.searchFood(input.query, ctx.redis)),
 
-    byBarcode: publicProcedure.input(z.object({ barcode: z.string() })).query(() => null),
+    byBarcode: publicProcedure
+      .input(z.object({ barcode: z.string() }))
+      .query(async ({ input, ctx }) => foodService.getByBarcode(input.barcode, ctx.redis)),
 
     logEntry: protectedProcedure
       .input(
