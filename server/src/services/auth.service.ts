@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 import type { SignUpInput, SignInInput } from '../schemas';
@@ -65,7 +66,7 @@ export async function signUp(
     carbsTargetG: null,
     fatTargetG: null,
     isOnboarded: false,
-    password: input.password,
+    password: await bcrypt.hash(input.password, 10),
   };
   users.set(id, user);
 
@@ -79,6 +80,11 @@ export async function signIn(
   const user = [...users.values()].find((u) => u.email === input.email);
 
   if (!user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' });
+  }
+
+  const passwordMatch = await bcrypt.compare(input.password, user.password);
+  if (!passwordMatch) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' });
   }
 
