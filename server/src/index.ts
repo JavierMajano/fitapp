@@ -38,6 +38,6 @@ app.use(
     createContext,
   }),
 );
-app.listen(PORT, "0.0.0.0", function () {
+app.listen(PORT, '0.0.0.0', function () {
   console.warn(`[server] Running on port ${PORT}`);
 });
