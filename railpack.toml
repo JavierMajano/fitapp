@@ -1,3 +1,5 @@
 [variables]
-# EXPO_PUBLIC_SENTRY_DSN is injected by Railway as a build arg — prevent Railpack from requiring it as a Docker secret
+# Railpack auto-detects @sentry/react-native and generates a Docker build secret named "sentry".
+# Providing defaults here prevents the build from failing when these aren't provided as build secrets.
 EXPO_PUBLIC_SENTRY_DSN = ""
+sentry = ""
