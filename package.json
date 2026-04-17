@@ -11,7 +11,8 @@
     "dev:server": "cd server && npm run dev",
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
+    "test:e2e": "node -e \"require('fs').mkdirSync('playwright-report/screenshots',{recursive:true})\" && node e2e/fitapp-kg.js && node e2e/fitapp-lbs.js && node e2e/report.js"
   },
   "overrides": {
     "react": "18.2.0",
@@ -56,6 +57,7 @@
     "husky": "^9.0.11",
     "lightningcss-wasm": "^1.27.0",
     "lint-staged": "^15.2.5",
+    "playwright": "^1.57.0",
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.6.1",
     "tailwindcss": "^3.4.3",

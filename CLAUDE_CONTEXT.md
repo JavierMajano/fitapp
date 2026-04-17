@@ -380,7 +380,7 @@ Macro split (starting point):
 
 ---
 
-## Project structure (Phase 3 — current state)
+## Project structure (Phase 4 — current state)
 
 ```
 fitapp/
@@ -393,8 +393,8 @@ fitapp/
 │   ├── (tabs)/
 │   │   ├── _layout.tsx       -- bottom tab navigator + custom icons (5 tabs)
 │   │   ├── index.tsx         -- dashboard (placeholder)
-│   │   ├── food.tsx          -- food log with DateNav component
-│   │   ├── workout.tsx       -- workout with DateNav component
+│   │   ├── food.tsx          -- food log with DateNav + "+ Add food" button
+│   │   ├── workout.tsx       -- workout with DateNav + "Start session" button + My routines section
 │   │   ├── progress.tsx      -- progress charts (placeholder)
 │   │   └── profile.tsx       -- profile (placeholder)
 │   └── _layout.tsx           -- root layout + AuthGuard (protected routes) + hydrate()
@@ -402,27 +402,42 @@ fitapp/
 │   └── DateNav.tsx           -- reusable prev/next day navigation bar
 ├── config/
 │   └── gluestack.ts          -- full token config (colors, spacing, radii, fonts)
+├── e2e/
+│   ├── fitapp-kg.js          -- Playwright metric flow: food/workout/progress on Desktop + iPhone 14 (30 tests)
+│   ├── fitapp-lbs.js         -- Playwright imperial flow: toggle, lbs workout/progress, round-trip (26 tests)
+│   └── report.js             -- Generates playwright-report/index.html from results-kg.json + results-lbs.json
+├── playwright-report/        -- E2E output: index.html + screenshots/ + results-*.json (gitignored)
 ├── lib/
 │   ├── trpc.ts               -- tRPC client with Bearer token injection
-│   └── units.ts              -- unit conversion utilities (kg↔lbs, cm↔in, toMetric*, bounds)
+│   └── units.ts              -- unit conversion: kg↔lbs, cm↔in, toMetric*, displayWeight(kg, unit), WEIGHT_BOUNDS
 ├── server/
 │   ├── prisma/
-│   │   ├── schema.prisma     -- full L3 schema (all tables)
-│   │   └── seed.ts           -- seed stub (Phase 4 adds exercise library)
+│   │   ├── schema.prisma     -- full L3 schema (all tables incl. Muscle, Exercise, RoutineDay, etc.)
+│   │   └── seed.ts           -- calls seedMuscles + seedExercises + seedRoutines
 │   └── src/
 │       ├── auth.ts           -- Auth.js config (Google + Apple providers)
 │       ├── context.ts        -- tRPC context: JWT Bearer + Auth.js cookie session
 │       ├── db.ts             -- Prisma client singleton
 │       ├── index.ts          -- Express server (tRPC + Auth.js routes + health)
 │       ├── redis.ts          -- ioredis client singleton
-│       ├── router.ts         -- tRPC router: auth, user, food, workout procedures
-│       ├── schemas.ts        -- Zod schemas (signUp, signIn, onboarding)
+│       ├── router.ts         -- tRPC router: auth, user, food, workout procedures (all wired)
+│       ├── schemas/
+│       │   ├── auth.schemas.ts    -- signUpSchema, signInSchema
+│       │   ├── food.schemas.ts    -- foodItemResultSchema, FoodItemResult type
+│       │   ├── user.schemas.ts    -- onboardingSchema
+│       │   └── index.ts          -- re-exports all schemas
+│       ├── seed/
+│       │   └── exercise-seed.ts  -- seedMuscles (wger.de), seedExercises, seedRoutines (PPL/UL/FB)
 │       └── services/
-│           ├── auth.service.ts    -- signUp, signIn, getSafeUser (JWT-based)
-│           ├── social.service.ts  -- googleSignIn, appleSignIn (token verification + find-or-create)
-│           └── user.service.ts    -- completeOnboard + TDEE/macro calculation
+│           ├── auth.service.ts    -- signUp (bcrypt hash), signIn (bcrypt compare), getSafeUser
+│           ├── food.service.ts    -- searchFood (USDA), getByBarcode (Open Food Facts), Redis 24h TTL
+│           ├── social.service.ts  -- googleSignIn (token verification + find-or-create)
+│           ├── user.service.ts    -- completeOnboard + TDEE/macro calculation
+│           └── workout.service.ts -- listRoutines, startSession, logSet, endSession (in-memory)
 ├── store/
-│   └── auth.ts               -- Zustand auth store with expo-secure-store persistence
+│   ├── auth.ts               -- Zustand auth store with expo-secure-store persistence
+│   ├── fitlog.ts             -- Zustand store: food entries, workout sessions, body weight, mock seed data
+│   └── units.ts              -- Zustand store: unitSystem ('metric'|'imperial') with localStorage persistence
 ├── global.css                -- NativeWind v4 required CSS entry point
 ├── metro.config.js           -- NativeWind withNativeWind wrapper
 ├── .env.example              -- all required env vars documented
@@ -433,8 +448,7 @@ fitapp/
 │   └── pre-push              -- runs typecheck
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml            -- PR: lint + typecheck + expo-doctor
-│       └── deploy.yml        -- push dev→staging, main→production on Railway
+│       └── ci.yml            -- PR: lint + typecheck + expo-doctor
 ├── app.json                  -- Expo config (bundleIdentifier needs updating)
 ├── babel.config.js           -- NativeWind + Reanimated plugins
 ├── eas.json                  -- EAS build profiles: dev, preview, production
@@ -522,6 +536,36 @@ Fixed by hashing with `bcrypt.hash(password, 10)` on `signUp` and comparing with
 `expo-secure-store` throws on web. `store/auth.ts` uses a `Platform.OS === 'web'`
 check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` calls.
 
+### 9. Zustand unit store must persist to localStorage (store/units.ts)
+
+`addInitScript` in Playwright runs on every `page.goto()`. Without localStorage
+persistence, unit preference resets to `'metric'` on every tab navigation.
+Fix: `loadUnitSystem()` reads from `localStorage` at store init; `setUnitSystem()` writes
+to `localStorage` before calling `set()`. Key: `fitapp_unit_system`.
+
+### 10. addInitScript must NOT reset state that should persist (Playwright E2E)
+
+When testing the lbs flow, `addInitScript` injects auth keys on every navigation. If you
+also set `fitapp_unit_system` there, it overwrites the lbs preference set by the profile
+toggle after every `page.goto()`. Fix: only inject auth keys in `addInitScript` for lbs
+flow tests. Unit pref is set via the profile toggle and persists naturally via localStorage.
+
+### 11. Food modal selector ambiguity on web (app/(tabs)/food.tsx)
+
+`getByText('Dinner')` matches both the background meal card header AND the modal meal
+button (food tab always renders all 4 meal sections). `getByText('Log')` matches both the
+"Food Log" screen header and the "Log N kcal" button.
+Fix: Added `testID="meal-btn-{key}"` and `testID="log-food-btn"` to food.tsx. Use
+`[data-testid]` locators in Playwright for these elements.
+
+### 12. \_\_dirname wrong when Playwright scripts run via skill's run.js wrapper
+
+The skill runner executes scripts from its own directory, making `__dirname` resolve to
+the skill directory instead of the project. On Windows, `/tmp` paths are not found.
+Fix: Write E2E scripts to the project `e2e/` directory and run them directly:
+`node e2e/fitapp-kg.js` from the project root. `__dirname` then resolves correctly to
+`<project>/e2e/`.
+
 ---
 
 ## Foundation plan — 6 phases
@@ -573,12 +617,42 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 - **Password hashing** (`server/src/services/auth.service.ts`) — `bcryptjs` (already a dependency); `signUp` hashes with `bcrypt.hash(password, 10)`; `signIn` validates with `bcrypt.compare` — wrong password throws `UNAUTHORIZED`
 - **Playwright E2E suite** (`C:/tmp/playwright-test-phase3.js`) — 23 tests covering backend API (health, auth, TDEE) and Expo Web UI (AuthGuard redirect, sign-in/sign-up screens, onboarding Steps 0–2); all 23 pass
 
-### Phase 4 — Data seeding (NEXT)
+### Phase 4 — Data seeding & food/workout APIs ✅ COMPLETE
 
-- Import exercise library from wger.de into EXERCISE + MUSCLE tables (`server/prisma/seed.ts`)
-- Wire up Open Food Facts + USDA food API wrappers (cache responses in Redis with 24hr TTL)
-- Seed 3 default routines: PPL (6-day), Upper/Lower (4-day), Full Body (3-day)
-- tRPC procedures to implement: `food.search`, `food.byBarcode`, `workout.listRoutines`, `workout.startSession`, `workout.logSet`, `workout.endSession`
+#### Phase 4-A — Exercise library seeder
+
+- `server/src/seed/exercise-seed.ts` — three seed functions:
+  - `seedMuscles(db)` — fetches ~40+ muscles from wger.de, stores with `group` and `bodyRegion`
+  - `seedExercises(db)` — fetches ~800 exercises from wger.de, strips HTML, links primary/secondary muscles
+  - `seedRoutines(db)` — creates 3 system routines (userId=null): Push/Pull/Legs (6-day), Upper/Lower (4-day), Full Body (3-day)
+- `server/prisma/seed.ts` — thin entry-point calling all three functions
+- 154/154 Vitest tests pass
+
+#### Phase 4-B — Food API service
+
+- `server/src/services/food.service.ts`:
+  - `searchFood(query, redis)` — USDA FoodData Central text search, up to 10 results, Redis cache 24h TTL
+  - `getByBarcode(barcode, redis)` — Open Food Facts barcode lookup, Redis cache 24h TTL, graceful null on miss
+- `server/src/schemas/food.schemas.ts` — `foodItemResultSchema` (name, brand, barcode, source, sourceRefId, caloriesPer100g, proteinPer100g, carbsPer100g, fatPer100g, fiberPer100g, sugarPer100g, sodiumPer100g)
+- tRPC routes wired: `food.search` (public GET), `food.byBarcode` (public GET)
+
+#### Phase 4-C — Workout session procedures
+
+- `server/src/services/workout.service.ts` (in-memory store):
+  - `listRoutines(userId, db)` — returns active routines (global + user-owned)
+  - `startSession(userId, input, db)` — creates session; throws NOT_FOUND for invalid routineId
+  - `logSet(userId, input, db)` — logs a set; throws NOT_FOUND/FORBIDDEN/BAD_REQUEST
+  - `endSession(userId, input, db)` — marks session ended; throws BAD_REQUEST if already ended
+- tRPC routes wired: all 4 workout procedures (listRoutines public, rest protected)
+
+#### Playwright E2E suite expanded (Phase 4)
+
+- `C:/tmp/playwright-test-phase3.js` — expanded to **39 tests** (was 23):
+  - Section 5: Food API — USDA search, empty query validation, barcode lookup (Nutella), unknown barcode
+  - Section 6: Workout API — listRoutines, startSession (ad-hoc), logSet, endSession, double-end guard, invalid routineId guard
+  - Section 7: UI tabs — Food tab ("Food log" heading, "+ Add food") and Workout tab ("Workout" heading, "Start session", "My routines")
+  - **39/39 pass**
+- tRPC query URL format: `GET /trpc/{procedure}?input={JSON}` (no `json` wrapper, no batch prefix)
 
 ### Phase 5 — CI/CD & environment config
 
@@ -603,10 +677,10 @@ check to fall back to `localStorage` for all `getItem`/`setItem`/`deleteItem` ca
 
 ## Current status
 
-Phases 1, 2, and 3 fully complete. 113 Vitest tests passing (6 files). Playwright E2E suite: 23/23 passing. Password hashing with bcryptjs in place. Google OAuth credentials configured. Prisma migration deployed to Railway staging.
+Phases 1–4 fully complete. 154 Vitest tests passing. Playwright E2E suite: 54/54 (39 API/onboarding tests + kg/lbs UI flows × Desktop + iPhone 14). kg/lbs unit switching live across profile, workout, and progress tabs (`store/units.ts` with localStorage persistence). CI playwright job added to `.github/workflows/ci.yml`: builds Expo web, serves static, runs E2E, uploads `playwright-report/` as a GitHub Actions artifact. Password hashing, food APIs, workout session lifecycle, and exercise seeder all complete. Deployed to Railway staging.
 Repo: https://github.com/JavierMajano/fitapp
 
-Next code phase: Phase 4 — data seeding (exercise library from wger.de, food API wrappers, default routines).
+Next code phase: Phase 5 — CI/CD hardening (Sentry error tracking, Expo EAS Build dev profile, environment variable documentation), then Phase 6 — wire UI tabs to real tRPC backend.
 
 ---
 

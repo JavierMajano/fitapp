@@ -1,7 +1,14 @@
 import { Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import type { UnitSystem } from '@/lib/units';
+import { useUnitsStore } from '@/store/units';
+
+const OTHER_SETTINGS = ['Edit profile', 'Notifications', 'Connected apps'] as const;
+
 export default function ProfileScreen() {
+  const { unitSystem, setUnitSystem } = useUnitsStore();
+
   return (
     <SafeAreaView className="bg-surface-DEFAULT flex-1">
       <ScrollView className="flex-1 px-5 pt-4" showsVerticalScrollIndicator={false}>
@@ -45,21 +52,59 @@ export default function ProfileScreen() {
         <Text className="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-400">
           Settings
         </Text>
-        {['Edit profile', 'Units (kg / lbs)', 'Notifications', 'Connected apps', 'Sign out'].map(
-          (item) => (
-            <TouchableOpacity
-              key={item}
-              className="mb-2 flex-row items-center justify-between rounded-2xl border border-surface-border bg-surface-card px-4 py-3.5"
-            >
-              <Text
-                className={`text-sm font-medium ${item === 'Sign out' ? 'text-red-400' : 'text-white'}`}
+
+        {/* Unit system segmented control */}
+        <View className="mb-2 flex-row items-center justify-between rounded-2xl border border-surface-border bg-surface-card px-4 py-3.5">
+          <Text className="text-sm font-medium text-white">Units</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              borderRadius: 10,
+              overflow: 'hidden',
+              borderWidth: 1,
+              borderColor: '#2e2e2e',
+            }}
+          >
+            {(['metric', 'imperial'] as UnitSystem[]).map((u) => (
+              <TouchableOpacity
+                key={u}
+                testID={u === 'metric' ? 'unit-btn-kg' : 'unit-btn-lbs'}
+                onPress={() => setUnitSystem(u)}
+                style={{
+                  backgroundColor: unitSystem === u ? '#1a9e6e' : '#222222',
+                  paddingHorizontal: 16,
+                  paddingVertical: 6,
+                }}
               >
-                {item}
-              </Text>
-              {item !== 'Sign out' && <Text className="text-zinc-600">›</Text>}
-            </TouchableOpacity>
-          ),
-        )}
+                <Text
+                  style={{
+                    color: unitSystem === u ? '#ffffff' : '#71717a',
+                    fontSize: 13,
+                    fontWeight: '600',
+                  }}
+                >
+                  {u === 'metric' ? 'kg' : 'lbs'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Other settings */}
+        {OTHER_SETTINGS.map((item) => (
+          <TouchableOpacity
+            key={item}
+            className="mb-2 flex-row items-center justify-between rounded-2xl border border-surface-border bg-surface-card px-4 py-3.5"
+          >
+            <Text className="text-sm font-medium text-white">{item}</Text>
+            <Text className="text-zinc-600">›</Text>
+          </TouchableOpacity>
+        ))}
+
+        {/* Sign out */}
+        <TouchableOpacity className="mb-2 flex-row items-center justify-between rounded-2xl border border-surface-border bg-surface-card px-4 py-3.5">
+          <Text className="text-sm font-medium text-red-400">Sign out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

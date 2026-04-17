@@ -53,3 +53,12 @@ export const HEIGHT_BOUNDS: Record<UnitSystem, { max: number }> = {
   metric: { max: 300 },
   imperial: { max: 118 },
 };
+
+/**
+ * Convert a stored kg value to a display string with unit label.
+ * metric   → "81.2 kg"   (1 decimal)
+ * imperial → "179.0 lbs" (1 decimal)
+ */
+export function displayWeight(kg: number, unit: UnitSystem): string {
+  return unit === 'imperial' ? `${fmt(kg / KG_PER_LB, 1)} lbs` : `${fmt(kg, 1)} kg`;
+}
