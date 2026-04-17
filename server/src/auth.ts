@@ -8,20 +8,21 @@ import type { Session, User } from '@auth/core/types';
 import bcrypt from 'bcryptjs';
 
 import { db } from './db';
+import { env } from './env';
 import { signInSchema } from './schemas';
 
 export const authConfig: ExpressAuthConfig = {
-  secret: process.env.JWT_SECRET,
+  secret: env.JWT_SECRET,
   trustHost: true,
   session: { strategy: 'jwt' },
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
     }),
     Apple({
-      clientId: process.env.APPLE_ID!,
-      clientSecret: process.env.APPLE_SECRET!,
+      clientId: env.APPLE_ID ?? '',
+      clientSecret: env.APPLE_SECRET ?? '',
     }),
     Credentials({
       credentials: {

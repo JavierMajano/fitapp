@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+import { env } from '../env';
 import type { SignUpInput, SignInInput } from '../schemas';
 
 export type SafeUser = {
@@ -33,7 +34,7 @@ export function clearUsers(): void {
 const JWT_EXPIRY = '30d';
 
 function signToken(userId: string, email: string): string {
-  return jwt.sign({ sub: userId, email }, process.env.JWT_SECRET ?? 'dev-secret', {
+  return jwt.sign({ sub: userId, email }, env.JWT_SECRET, {
     expiresIn: JWT_EXPIRY,
   });
 }

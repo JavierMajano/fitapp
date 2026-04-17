@@ -1,5 +1,6 @@
 import type Redis from 'ioredis';
 
+import { env } from '../env';
 import { TTL } from '../redis';
 import type { FoodItemResult } from '../schemas';
 
@@ -137,7 +138,7 @@ export async function getByBarcode(
 }
 
 export async function searchFood(query: string, redisClient: Redis): Promise<FoodItemResult[]> {
-  const apiKey = process.env.USDA_API_KEY;
+  const apiKey = env.USDA_API_KEY;
   if (!apiKey) return [];
 
   const cacheKey = `food:search:${query.toLowerCase()}`;

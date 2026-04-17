@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import './instrument';
+import { env } from './env';
+
+import * as Sentry from '@sentry/node';
 import * as trpcExpress from '@trpc/server/adapters/express';
 import cors from 'cors';
 import express from 'express';
@@ -8,7 +11,7 @@ import { createContext } from './context';
 import { appRouter } from './router';
 
 const app = express();
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = env.PORT;
 
 // Trust proxy headers — required for Auth.js to detect HTTPS behind Railway's load balancer
 app.set('trust proxy', true);
@@ -45,8 +48,17 @@ app.use(
   trpcExpress.createExpressMiddleware({
     router: appRouter,
     createContext,
+    onError({ error, path }) {
+      if (error.code !== 'UNAUTHORIZED' && error.code !== 'FORBIDDEN') {
+        Sentry.captureException(error, { extra: { path } });
+      }
+    },
   }),
 );
+
+// Sentry error handler must come after all routes
+Sentry.setupExpressErrorHandler(app);
+
 app.listen(PORT, '0.0.0.0', function () {
   console.warn(`[server] Running on port ${PORT}`);
 });
