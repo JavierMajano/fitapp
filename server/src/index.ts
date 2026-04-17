@@ -30,6 +30,15 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'FitApp API',
+    version: process.env.npm_package_version ?? '0.1.0',
+    status: 'ok',
+    endpoints: ['/health', '/auth', '/trpc'],
+  });
+});
+
 // tRPC
 app.use(
   '/trpc',
