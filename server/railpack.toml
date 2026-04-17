@@ -1,3 +1,5 @@
 [variables]
-# SENTRY_DSN is runtime-only — default to empty so Railpack doesn't block build as a required secret
+# Railpack auto-detects @sentry/node and generates a Docker build secret named "sentry".
+# Providing defaults here prevents the build from failing when these aren't provided as build secrets.
 SENTRY_DSN = ""
+sentry = ""
