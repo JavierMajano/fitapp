@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import jwt from 'jsonwebtoken';
 
+import { env } from '../env';
 import { users } from './auth.service';
 import type { SafeUser } from './auth.service';
 
@@ -8,7 +9,7 @@ const JWT_EXPIRY = '30d';
 let nextGoogleId = 1000;
 
 function signToken(userId: string, email: string): string {
-  return jwt.sign({ sub: userId, email }, process.env.JWT_SECRET ?? 'dev-secret', {
+  return jwt.sign({ sub: userId, email }, env.JWT_SECRET, {
     expiresIn: JWT_EXPIRY,
   });
 }

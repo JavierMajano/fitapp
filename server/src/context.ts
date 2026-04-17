@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 
 import { authConfig } from './auth';
 import { db } from './db';
+import { env } from './env';
 import { redis } from './redis';
 
 type SessionUser = { id: string; email: string };
@@ -16,7 +17,7 @@ async function resolveSession(req: Request, _res: Response): Promise<Session> {
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+      const payload = jwt.verify(token, env.JWT_SECRET) as {
         sub: string;
         email: string;
       };

@@ -8,6 +8,12 @@
       "port": 8081
     },
     {
+      "name": "Expo Worktree",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "web", "--", "--port", "8082", "--clear"],
+      "port": 8082
+    },
+    {
       "name": "tRPC API Server",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:server"],
