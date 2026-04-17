@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches: [dev, main]
+
+jobs:
+  deploy-server:
+    name: Deploy API Server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy server (staging)
+        if: github.ref == 'refs/heads/dev'
+        run: railway up --service fitapp-server --detach
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      - name: Deploy server (production)
+        if: github.ref == 'refs/heads/main'
+        run: railway up --service fitapp-server --detach
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
+
+  deploy-web:
+    name: Deploy Web Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy web (staging)
+        if: github.ref == 'refs/heads/dev'
+        run: railway up --service fitapp-web --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      - name: Deploy web (production)
+        if: github.ref == 'refs/heads/main'
+        run: railway up --service fitapp-web --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
