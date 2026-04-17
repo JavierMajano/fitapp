@@ -85,3 +85,10 @@ Zustand auth store (`/store/auth.ts`) holds `user`, `token`, `isLoading`, `isOnb
 ### Environment
 
 Copy `.env.railway` to `.env`. Key variable: `EXPO_PUBLIC_API_URL`.
+
+## Current Phase & Status
+
+**Phases complete:** 1 (scaffold + tooling), 2 (backend + Prisma + tRPC + Railway), 3 (auth + onboarding), 4 (food/workout APIs + exercise seeder). 154 Vitest + 39 Playwright API tests passing.
+**UI layer:** Expo web tabs (food, workout, progress, profile) built with Zustand + mock seed data. kg/lbs unit switching live (`store/units.ts` + profile toggle). Playwright E2E suite: 54/54 (`e2e/fitapp-kg.js` + `e2e/fitapp-lbs.js`, Desktop + iPhone 14). CI playwright job uploads HTML report artifact.
+**Next target:** Phase 5 — CI/CD hardening (Sentry, EAS Build dev profile, env var docs), then wire UI tabs to real tRPC backend.
+**Full context:** Read `CLAUDE_CONTEXT.md` for DB schema, API specs, phase details, and known issues.
