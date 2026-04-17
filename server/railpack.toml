@@ -1,0 +1,3 @@
+[variables]
+# SENTRY_DSN is runtime-only — default to empty so Railpack doesn't block build as a required secret
+SENTRY_DSN = ""
