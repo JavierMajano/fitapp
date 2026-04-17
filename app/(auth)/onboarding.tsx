@@ -165,7 +165,7 @@ function UnitDropdown({
   const selected = UNIT_OPTIONS.find((o) => o.value === value)!;
 
   return (
-    <View className="relative mb-4">
+    <View className="relative mb-4" style={{ zIndex: 20 }}>
       <Text className="mb-2 text-sm text-zinc-400">Units</Text>
 
       {/* Trigger */}
@@ -179,9 +179,12 @@ function UnitDropdown({
         <Text className="text-zinc-400">{open ? '▲' : '▼'}</Text>
       </TouchableOpacity>
 
-      {/* Dropdown list */}
+      {/* Dropdown list — zIndex inline required for RN web stacking context */}
       {open && (
-        <View className="absolute left-0 right-0 top-[72px] z-10 overflow-hidden rounded-xl border border-surface-border bg-surface-card shadow-lg">
+        <View
+          className="absolute left-0 right-0 top-[72px] rounded-xl border border-surface-border bg-surface-card shadow-lg"
+          style={{ zIndex: 50 }}
+        >
           {UNIT_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.value}
