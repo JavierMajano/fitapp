@@ -12,6 +12,7 @@ import { signInSchema } from './schemas';
 
 export const authConfig: ExpressAuthConfig = {
   secret: process.env.JWT_SECRET,
+  trustHost: true,
   session: { strategy: 'jwt' },
   providers: [
     Google({
