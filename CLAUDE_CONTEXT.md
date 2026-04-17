@@ -654,12 +654,19 @@ Fix: Write E2E scripts to the project `e2e/` directory and run them directly:
   - **39/39 pass**
 - tRPC query URL format: `GET /trpc/{procedure}?input={JSON}` (no `json` wrapper, no batch prefix)
 
-### Phase 5 — CI/CD & environment config
+### Phase 5 — CI/CD & environment config ✅ COMPLETE
 
-- GitHub Actions pipelines (scaffolded — needs secrets added)
-- Sentry error tracking
-- Expo EAS Build dev profile
-- Document all env vars
+- **Sentry error tracking** — `@sentry/react-native` (client) + `@sentry/node` (server) wired up
+  - `server/src/instrument.ts` — Sentry init pre-loaded via `tsx --import` before Express
+  - `server/src/env.ts` — Zod schema validates all 11 server env vars; crashes fast on startup if invalid
+  - `server/src/index.ts` — health endpoint, `Sentry.setupExpressErrorHandler`, UNAUTHORIZED/FORBIDDEN errors skipped
+  - `app/_layout.tsx` — `Sentry.wrap()` + `Sentry.ErrorBoundary` wrapping all providers; `QueryCache`/`MutationCache` global error handlers show toast + capture to Sentry (skip 401/403)
+  - `components/ErrorToast.tsx` — floating overlay, 4s auto-dismiss, colored left-border per variant (error/warning/info/success), safe-area aware
+  - `store/toast.ts` — Zustand store: `showToast`, `showError`, `dismissToast`, `clearAll`
+  - `SentryFallback` — dark screen with red "Something went wrong" + brand-green "Try again" button
+- **EAS Build dev profile** — `eas.json` has development/preview/production profiles; `expo-dev-client` installed; EAS scripts in `package.json` (`eas:build:dev/preview/prod`)
+- **Env var documentation** — `docs/env-vars.md` canonical reference table for all 11 server + 2 client vars
+- All server modules migrated from `process.env.*` to `env.*` (auth, context, redis, services)
 
 ### Phase 6 — Progress & history
 
@@ -677,10 +684,10 @@ Fix: Write E2E scripts to the project `e2e/` directory and run them directly:
 
 ## Current status
 
-Phases 1–4 fully complete. 154 Vitest tests passing. Playwright E2E suite: 54/54 (39 API/onboarding tests + kg/lbs UI flows × Desktop + iPhone 14). kg/lbs unit switching live across profile, workout, and progress tabs (`store/units.ts` with localStorage persistence). CI playwright job added to `.github/workflows/ci.yml`: builds Expo web, serves static, runs E2E, uploads `playwright-report/` as a GitHub Actions artifact. Password hashing, food APIs, workout session lifecycle, and exercise seeder all complete. Deployed to Railway staging.
+Phases 1–5 fully complete. 154 Vitest tests passing. Playwright E2E suite: 54/54 (39 API/onboarding tests + kg/lbs UI flows × Desktop + iPhone 14). kg/lbs unit switching live across profile, workout, and progress tabs (`store/units.ts` with localStorage persistence). CI playwright job added to `.github/workflows/ci.yml`. Password hashing, food APIs, workout session lifecycle, and exercise seeder all complete. Deployed to Railway staging. Sentry wired on client + server, toast error feedback system live, EAS Build profiles configured, env vars documented.
 Repo: https://github.com/JavierMajano/fitapp
 
-Next code phase: Phase 5 — CI/CD hardening (Sentry error tracking, Expo EAS Build dev profile, environment variable documentation), then Phase 6 — wire UI tabs to real tRPC backend.
+Next code phase: Phase 6 — wire UI tabs to real tRPC backend (food logging, workout session logging, progress charts, profile data from DB).
 
 ---
 
