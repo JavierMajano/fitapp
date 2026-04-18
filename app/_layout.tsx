@@ -17,7 +17,7 @@ import { useToastStore } from '@store/toast';
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   environment: process.env.EXPO_PUBLIC_APP_ENV ?? 'development',
-  enabled: process.env.EXPO_PUBLIC_APP_ENV === 'production',
+  enabled: process.env.EXPO_PUBLIC_APP_ENV !== 'development',
   tracesSampleRate: 0.2,
 });
 
