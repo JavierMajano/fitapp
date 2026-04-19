@@ -7,8 +7,8 @@ export const onboardingSchema = z.object({
   age: z.number().int().min(13).max(120),
   sex: z.enum(['male', 'female']),
   activityLevel: z.enum(['sedentary', 'light', 'moderate', 'active', 'very_active']),
-  goalWeightKg: z.number().positive().max(500),
-  goalTargetDate: z.string().datetime(),
+  goalWeightKg: z.number().positive().max(500).nullable().optional(),
+  goalTargetDate: z.string().datetime().nullable().optional(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
