@@ -29,6 +29,8 @@ function toStoreUser(user: {
   proteinTargetG: number | null;
   carbsTargetG: number | null;
   fatTargetG: number | null;
+  goalWeightKg?: number | null;
+  goalTargetDate?: string | Date | null;
 }): User {
   return {
     id: user.id,
@@ -40,6 +42,12 @@ function toStoreUser(user: {
     proteinTargetG: user.proteinTargetG,
     carbsTargetG: user.carbsTargetG,
     fatTargetG: user.fatTargetG,
+    goalWeightKg: user.goalWeightKg ?? null,
+    goalTargetDate: user.goalTargetDate
+      ? typeof user.goalTargetDate === 'string'
+        ? user.goalTargetDate
+        : user.goalTargetDate.toISOString()
+      : null,
   };
 }
 
