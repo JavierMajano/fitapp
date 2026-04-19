@@ -30,7 +30,13 @@ interface EditProfileModalProps {
   initialName: string;
   initialWeightKg: number | null;
   initialGoalWeightKg: number | null;
-  onSave: (data: { name?: string; weightKg?: number; goalWeightKg?: number }) => void;
+  initialGoalTargetDate: string | null;
+  onSave: (data: {
+    name?: string;
+    weightKg?: number;
+    goalWeightKg?: number;
+    goalTargetDate?: string | null;
+  }) => void;
   isPending: boolean;
 }
 
@@ -40,6 +46,7 @@ function EditProfileModal({
   initialName,
   initialWeightKg,
   initialGoalWeightKg,
+  initialGoalTargetDate,
   onSave,
   isPending,
 }: EditProfileModalProps) {
@@ -48,14 +55,23 @@ function EditProfileModal({
   const [goalWeight, setGoalWeight] = useState(
     initialGoalWeightKg ? String(initialGoalWeightKg) : '',
   );
+  const [goalTargetDate, setGoalTargetDate] = useState(initialGoalTargetDate ?? '');
 
   function handleSave() {
-    const data: { name?: string; weightKg?: number; goalWeightKg?: number } = {};
+    const data: {
+      name?: string;
+      weightKg?: number;
+      goalWeightKg?: number;
+      goalTargetDate?: string | null;
+    } = {};
     if (name.trim() && name.trim() !== initialName) data.name = name.trim();
     const wt = parseFloat(weight);
     if (!isNaN(wt) && wt > 0) data.weightKg = wt;
     const gw = parseFloat(goalWeight);
     if (!isNaN(gw) && gw > 0) data.goalWeightKg = gw;
+    if (goalTargetDate !== initialGoalTargetDate) {
+      data.goalTargetDate = goalTargetDate || null;
+    }
     onSave(data);
   }
 
@@ -108,12 +124,23 @@ function EditProfileModal({
               <TextInput
                 testID="profile-goal-weight-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-5 rounded-xl px-4 py-3 text-white"
+                className="mb-4 rounded-xl px-4 py-3 text-white"
                 keyboardType="numeric"
                 placeholder="e.g. 70"
                 placeholderTextColor="#52525b"
                 value={goalWeight}
                 onChangeText={setGoalWeight}
+              />
+
+              <Text className="mb-2 text-xs text-zinc-400">Target date (ISO 8601)</Text>
+              <TextInput
+                testID="profile-goal-target-date-input"
+                style={{ backgroundColor: '#222222', color: '#fff' }}
+                className="mb-5 rounded-xl px-4 py-3 text-white"
+                placeholder="e.g. 2024-12-31T23:59:59Z"
+                placeholderTextColor="#52525b"
+                value={goalTargetDate}
+                onChangeText={setGoalTargetDate}
               />
 
               <TouchableOpacity
@@ -156,6 +183,7 @@ export default function ProfileScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
 
   const { unitSystem, setUnitSystem } = useUnitsStore();
+  const { setUser } = useAuthStore();
   const signOut = useAuthStore((s) => s.signOut);
   const showError = useToastStore((s) => s.showError);
   const utils = trpc.useUtils();
@@ -164,7 +192,8 @@ export default function ProfileScreen() {
   const user = meQuery.data;
 
   const updateProfileMut = trpc.user.updateProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setUser(data as any);
       utils.auth.me.invalidate();
       setEditModalVisible(false);
     },
@@ -356,6 +385,7 @@ export default function ProfileScreen() {
           initialName={user.name}
           initialWeightKg={user.weightKg}
           initialGoalWeightKg={user.goalWeightKg}
+          initialGoalTargetDate={user.goalTargetDate}
           onSave={(data) => updateProfileMut.mutate(data)}
           isPending={updateProfileMut.isPending}
         />

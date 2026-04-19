@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import type { PrismaClient } from '../db';
 import type { OnboardingInput, UpdateProfileInput, UpdateSettingsInput } from '../schemas';
 import type { SafeUser } from './auth.service';
+import * as bodyService from './body.service';
 
 // ─── TDEE helpers ─────────────────────────────────────────────────────────────
 
@@ -156,6 +157,13 @@ export async function updateProfile(
   }
 
   const user = await db.user.update({ where: { id: userId }, data: updateData });
+
+  // Log weight change if weightKg was updated
+  if (input.weightKg !== undefined && input.weightKg !== current.weightKg) {
+    const today = new Date().toISOString().split('T')[0];
+    await bodyService.logWeight(userId, { weightKg: input.weightKg, date: today }, db);
+  }
+
   return toSafe(user);
 }
 
