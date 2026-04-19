@@ -668,26 +668,84 @@ Fix: Write E2E scripts to the project `e2e/` directory and run them directly:
 - **Env var documentation** — `docs/env-vars.md` canonical reference table for all 11 server + 2 client vars
 - All server modules migrated from `process.env.*` to `env.*` (auth, context, redis, services)
 
-### Phase 6 — Progress & history
+### Phase 6 — Wire UI tabs to real tRPC backend ✅ COMPLETE
 
-- Install: `npm install victory-native@^41 @shopify/react-native-skia`
-- Progress tab with 3 sections:
-  1. Body weight line chart (BODY_LOG) — time range selector: 1W/1M/3M/6M/All
-  2. Calorie bar chart — daily intake vs target (FOOD_LOG)
-  3. Strength tracker — exercise picker + max weight per session (SESSION_SET)
-- Date navigation on Food screen — view and edit any past day
-- Date navigation on Workout screen — view and edit any past session
-- Edit mode for FOOD_LOG_ENTRY — updates edited_at on save
-- Edit mode for SESSION_SET — updates edited_at on save
+All 5 tabs replaced Zustand mock data with real tRPC/DB calls.
+
+#### 6-A — Backend procedures & schema fixes
+
+- All workout procedures made DB-backed: `listRoutines`, `startSession`, `logSet`, `endSession`, `getSessionsByDate`, `updateSet`, `deleteSet`
+- New procedures added: `food.getDailyLog`, `food.updateEntry`, `food.deleteEntry`, `body.logWeight`, `body.getHistory`, `progress.getCalorieHistory`, `progress.getStrengthHistory`, `user.getSettings`, `user.updateSettings`, `workout.listExercises`
+- Prisma `@@unique([userId, loggedDate])` constraint added to `BodyLog` (migration applied)
+- `server/src/context.ts` — added `dev-bypass-token` bypass for E2E tests (maps to `dev@fitapp.test`)
+- `server/prisma/seed.ts` — `seedDevUser()` creates stable `dev@fitapp.test` E2E user
+- 208/208 Vitest tests passing; 0 TypeScript errors on server + frontend
+
+#### 6-B — Food tab wired
+
+- `app/(tabs)/food.tsx` — `trpc.food.getDailyLog`, `trpc.food.search` (debounced), `trpc.food.byBarcode`, `trpc.food.logEntry`, `trpc.food.deleteEntry`
+- testIDs added: `add-food-btn`, `food-search-input`, `food-result-{i}`, `delete-entry-{id}`, `calorie-progress-bar`, `meal-btn-{key}`, `log-food-btn`
+
+#### 6-C — Workout tab wired
+
+- `app/(tabs)/workout.tsx` — `trpc.workout.listRoutines`, `trpc.workout.listExercises`, `trpc.workout.startSession`, `trpc.workout.logSet`, `trpc.workout.endSession`, `trpc.workout.getSessionsByDate`
+- testIDs added: `start-session-btn`, `start-empty-session-btn`, `routine-btn-{id}`, `add-set-btn`, `exercise-search-input`, `exercise-result-{i}`, `log-set-submit-btn`, `finish-session-btn`, `cancel-session-btn`, `session-card-{id}`
+
+#### 6-D — Progress tab wired
+
+- `app/(tabs)/progress.tsx` — `trpc.body.getHistory`, `trpc.body.logWeight`, `trpc.progress.getCalorieHistory`
+- Time range selector (1W/1M/3M) with date-range params; Victory Native XL charts
+- testIDs added: `log-weight-btn`, `weight-log-input`, `save-weight-btn`, `time-range-1w/1m/3m`, `weight-chart`, `calorie-chart`
+
+#### 6-E — Dashboard tab wired
+
+- `app/(tabs)/index.tsx` — `trpc.auth.me` (targets + goal weight progress), `trpc.food.getDailyLog` (today's macros)
+- testIDs added: `calorie-progress-bar`, `goal-weight-widget`, `goal-weight-progress-bar`, `dashboard-greeting`
+
+#### 6-F — Profile tab wired
+
+- `app/(tabs)/profile.tsx` — `trpc.auth.me`, `trpc.user.updateProfile`, `trpc.user.updateSettings`
+- testIDs added: `edit-profile-btn`, `profile-name-input`, `profile-weight-input`, `profile-goal-weight-input`, `save-changes-btn`, `sign-out-btn`, `unit-btn-kg`, `unit-btn-lbs`
+
+#### Auth screens — testIDs added
+
+- `app/(auth)/sign-in.tsx`: `signin-email-input`, `signin-password-input`, `signin-btn`, `signin-error`, `goto-signup-link`
+- `app/(auth)/sign-up.tsx`: `signup-name-input`, `signup-email-input`, `signup-password-input`, `signup-btn`, `signup-error`, `goto-signin-link`
+- `app/(auth)/onboarding.tsx`: `onboard-name-input`, `onboard-continue-btn`, `onboard-weight-input`, `onboard-height-input`, `onboard-age-input`, `onboard-sex-male/female`, `onboard-goal-{mode}`, `onboard-activity-{level}`, `onboard-finish-btn`, `onboard-tdee-value`
+- `components/DateNav.tsx`: `date-nav-prev`, `date-nav-next`, `date-nav-label`
+
+#### E2E regression suite
+
+- `e2e/fitapp-regression.js` — 130 assertions across 8 suites (auth UI, onboarding, dashboard, food, workout, progress, profile, unit system), Desktop + iPhone 14, real backend JWT auth
+- `e2e/run-all.js` — Windows-compatible cross-platform runner (uses `spawnSync`)
+- `e2e/report.js` — unified HTML report including regression results
+- CI: `playwright-regression` job in `.github/workflows/ci.yml` (push-only, requires Railway secrets)
+- `npm run test:e2e:regression` — runs regression suite only
+- `npm run test:e2e:all` — runs all three suites
+
+#### Server test fixes
+
+- All `as never` Prisma mock casts changed to `as any` across 7 test files
+- `/* eslint-disable @typescript-eslint/no-explicit-any */` added at file level to affected test files
+- `auth.service.test.ts` `beforeEach` arrow body fix (wrapped in `{}` to return `void`)
 
 ---
 
 ## Current status
 
-Phases 1–5 fully complete. 154 Vitest tests passing. Playwright E2E suite: 54/54 (39 API/onboarding tests + kg/lbs UI flows × Desktop + iPhone 14). kg/lbs unit switching live across profile, workout, and progress tabs (`store/units.ts` with localStorage persistence). CI playwright job added to `.github/workflows/ci.yml`. Password hashing, food APIs, workout session lifecycle, and exercise seeder all complete. Deployed to Railway staging. Sentry wired on client + server, toast error feedback system live, EAS Build profiles configured, env vars documented.
+Phases 1–6 fully complete. **208/208 Vitest tests passing. 184/184 Playwright E2E passing** (54 legacy kg/lbs + 130 full regression suite, Desktop + iPhone 14). 0 TypeScript errors. 0 ESLint warnings.
+
+All 5 tabs (food, workout, progress, dashboard, profile) are wired to real tRPC/PostgreSQL backend — no Zustand mock data. kg/lbs unit switching live. Sentry wired on client + server. Toast error feedback live. EAS Build profiles configured. CI playwright + regression jobs active.
+
+Key backend facts:
+
+- Router: `auth` (signUp, signIn, me, googleSignIn), `food` (search, byBarcode, getDailyLog, logEntry, updateEntry, deleteEntry), `workout` (listRoutines, listExercises, startSession, logSet, endSession, getSessionsByDate, updateSet, deleteSet), `body` (logWeight, getHistory), `progress` (getCalorieHistory, getStrengthHistory), `user` (updateProfile, completeOnboard, getSettings, updateSettings)
+- `dev-bypass-token` in `context.ts` maps to stable `dev@fitapp.test` E2E user (non-production only)
+- `BodyLog` has `@@unique([userId, loggedDate])` — migration applied
+
 Repo: https://github.com/JavierMajano/fitapp
 
-Next code phase: Phase 6 — wire UI tabs to real tRPC backend (food logging, workout session logging, progress charts, profile data from DB).
+Next code phase: Phase 7 — TBD (push notifications, BullMQ TDEE recalc, native EAS build, or new features).
 
 ---
 

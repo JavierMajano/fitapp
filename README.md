@@ -12,11 +12,12 @@ A cross-platform fitness tracker for iOS, Android, and Web — workout logging, 
 | Styling  | NativeWind v4 · Gluestack UI v2   |
 | State    | Zustand · React Query             |
 | Backend  | Node.js · tRPC · Zod              |
-| Auth     | NextAuth                          |
+| Auth     | Auth.js (`@auth/express`) · JWT   |
 | Database | PostgreSQL · Prisma               |
 | Cache    | Redis                             |
 | Hosting  | Railway                           |
 | CI/CD    | GitHub Actions · EAS Build        |
+| Errors   | Sentry                            |
 
 ---
 
@@ -36,7 +37,7 @@ A cross-platform fitness tracker for iOS, Android, and Web — workout logging, 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/yourname/fitapp.git
+git clone https://github.com/JavierMajano/fitapp.git
 cd fitapp
 npm install
 ```
@@ -69,7 +70,7 @@ cp server/.env.railway server/.env
 cd server
 npm install
 npx prisma migrate dev --name init
-npx prisma db seed      # seeds exercises + default routines
+npx prisma db seed      # seeds muscles, exercises, routines, and dev user
 ```
 
 ### 4. Start the development server
@@ -112,6 +113,25 @@ git commit -m "feat: describe your change"
 git push origin feature/your-feature-name
 # Open PR → dev on GitHub
 ```
+
+---
+
+## E2E Tests
+
+Playwright suites run against the Expo web build + live backend.
+
+```bash
+# Legacy metric + imperial flows (no backend required — uses dev-bypass-token)
+npm run test:e2e
+
+# Full regression suite (requires backend running on port 3000)
+node e2e/fitapp-regression.js
+
+# Both suites + unified HTML report
+npm run test:e2e:all
+```
+
+Results are written to `playwright-report/` (gitignored). Open `playwright-report/index.html` to view the full report with screenshots.
 
 ---
 
@@ -162,34 +182,51 @@ eas secret:create --scope project --name EXPO_PUBLIC_SENTRY_DSN --value "https:/
 
 ```
 fitapp/
-├── app/                    # Expo Router screens
-│   ├── (auth)/             # Unauthenticated screens
-│   │   ├── sign-in.tsx
+├── app/
+│   ├── (auth)/
+│   │   ├── sign-in.tsx         # Email/password + Google SSO
 │   │   ├── sign-up.tsx
-│   │   └── onboarding.tsx
-│   ├── (tabs)/             # Main tab screens
-│   │   ├── index.tsx       # Dashboard
-│   │   ├── food.tsx        # Food log
-│   │   ├── workout.tsx     # Workout tracker
-│   │   └── profile.tsx     # Profile & settings
-│   └── _layout.tsx         # Root layout + providers
-├── components/             # Shared UI components
+│   │   └── onboarding.tsx      # 5-step wizard (measurements → TDEE preview)
+│   ├── (tabs)/
+│   │   ├── index.tsx           # Dashboard — macro ring + goal weight widget
+│   │   ├── food.tsx            # Food log + search + barcode scanner
+│   │   ├── workout.tsx         # Workout tracker + routines + set logging
+│   │   ├── progress.tsx        # Body weight + calorie charts
+│   │   └── profile.tsx         # Profile & settings
+│   └── _layout.tsx             # Root layout + AuthGuard + providers
+├── components/
+│   ├── BarcodeScanner.tsx      # Camera-based barcode scanner (expo-camera)
+│   ├── DateNav.tsx             # Prev/next day navigation bar
+│   └── ErrorToast.tsx          # Global tRPC error toast overlay
 ├── config/
-│   └── gluestack.ts        # Theme tokens
-├── hooks/                  # Custom React hooks
+│   └── gluestack.ts            # Theme tokens (colors, spacing, radii)
+├── docs/
+│   └── env-vars.md             # Full env var reference table
+├── e2e/
+│   ├── fitapp-kg.js            # Metric flow — 30 tests (Desktop + iPhone 14)
+│   ├── fitapp-lbs.js           # Imperial flow — 24 tests
+│   ├── fitapp-regression.js    # Full regression — 130 tests (real backend JWT)
+│   ├── run-all.js              # Cross-platform test runner (Windows-safe)
+│   └── report.js               # Unified HTML report generator
 ├── lib/
-│   └── trpc.ts             # tRPC client
-├── server/                 # Backend (Node.js + tRPC)
+│   ├── trpc.ts                 # tRPC client with Bearer token injection
+│   └── units.ts                # kg↔lbs / cm↔in conversion utilities
+├── server/
 │   ├── prisma/
-│   │   ├── schema.prisma
-│   │   └── seed.ts
-│   └── router.ts           # tRPC router
+│   │   ├── schema.prisma       # Full PostgreSQL schema (all tables)
+│   │   ├── seed.ts             # Seeds exercises, routines, and dev user
+│   │   └── migrations/
+│   └── src/
+│       ├── router.ts           # tRPC router — all procedures
+│       ├── context.ts          # Request context (JWT + Auth.js session)
+│       ├── services/           # auth, food, workout, body, progress, user
+│       ├── schemas/            # Shared Zod schemas
+│       └── __tests__/         # 208 Vitest unit + integration tests
 ├── store/
-│   └── auth.ts             # Zustand auth store
-├── types/                  # Shared TypeScript types
-├── .env.railway
+│   ├── auth.ts                 # Zustand auth store (token + user)
+│   ├── toast.ts                # Toast notification store
+│   └── units.ts                # Unit system preference (metric/imperial)
 ├── app.json
-├── babel.config.js
 ├── eas.json
 ├── tailwind.config.js
 └── tsconfig.json
@@ -201,20 +238,23 @@ fitapp/
 
 Add these in Settings → Secrets → Actions:
 
-| Secret                  | Description                       |
-| ----------------------- | --------------------------------- |
-| `DATABASE_URL_STAGING`  | Staging PostgreSQL URL            |
-| `DATABASE_URL_PROD`     | Production PostgreSQL URL         |
-| `RAILWAY_TOKEN_STAGING` | Railway deploy token (staging)    |
-| `RAILWAY_TOKEN_PROD`    | Railway deploy token (production) |
-| `SLACK_WEBHOOK_URL`     | Slack webhook for deploy alerts   |
+| Secret                  | Description                                           |
+| ----------------------- | ----------------------------------------------------- |
+| `DATABASE_URL_STAGING`  | Staging PostgreSQL URL (deploy workflow)              |
+| `DATABASE_URL_PROD`     | Production PostgreSQL URL (deploy workflow)           |
+| `RAILWAY_TOKEN_STAGING` | Railway deploy token — staging                        |
+| `RAILWAY_TOKEN_PROD`    | Railway deploy token — production                     |
+| `RAILWAY_DATABASE_URL`  | PostgreSQL URL for `playwright-regression` CI job     |
+| `JWT_SECRET`            | JWT signing secret for `playwright-regression` CI job |
+| `REDIS_URL`             | Redis URL for `playwright-regression` CI job          |
 
 ---
 
 ## Roadmap
 
 - [x] Phase 1 — Project scaffold & tooling
-- [ ] Phase 2 — Backend & database setup
-- [ ] Phase 3 — Auth & onboarding flow
-- [ ] Phase 4 — Data seeding
-- [ ] Phase 5 — CI/CD & environment config
+- [x] Phase 2 — Backend & database setup
+- [x] Phase 3 — Auth & onboarding flow
+- [x] Phase 4 — Data seeding & food/workout APIs
+- [x] Phase 5 — CI/CD & environment config
+- [x] Phase 6 — Wire all UI tabs to real tRPC/DB backend
