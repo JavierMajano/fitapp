@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getPresetDates, formatTargetDate, getPaceLabel } from '@/lib/goalCalculations';
 import { trpc } from '@/lib/trpc';
 import {
   type UnitSystem,
@@ -38,6 +39,8 @@ interface FormData {
   age: string;
   sex: Sex;
   goalMode: GoalMode;
+  goalWeightKg: string;
+  goalTargetDate: string;
   activityLevel: ActivityLevel;
 }
 
@@ -217,7 +220,7 @@ function UnitDropdown({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 export default function OnboardingScreen() {
   const user = useAuthStore((s) => s.user);
@@ -231,6 +234,8 @@ export default function OnboardingScreen() {
     age: '',
     sex: 'male',
     goalMode: 'maintenance',
+    goalWeightKg: '',
+    goalTargetDate: '',
     activityLevel: 'moderate',
   });
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
@@ -248,8 +253,10 @@ export default function OnboardingScreen() {
         proteinTargetG: updatedUser.proteinTargetG,
         carbsTargetG: updatedUser.carbsTargetG,
         fatTargetG: updatedUser.fatTargetG,
-        goalWeightKg: null,
-        goalTargetDate: null,
+        goalWeightKg: updatedUser.goalWeightKg,
+        goalTargetDate: updatedUser.goalTargetDate
+          ? new Date(updatedUser.goalTargetDate).toISOString()
+          : null,
       };
       setUser(storeUser);
       // AuthGuard will see isOnboarded=true and redirect to tabs
@@ -300,6 +307,20 @@ export default function OnboardingScreen() {
         return false;
       }
     }
+    if (step === 3) {
+      const gw = parseFloat(form.goalWeightKg);
+      const wMax = WEIGHT_BOUNDS[unitSystem].max;
+      const wUnit = unitSystem === 'imperial' ? 'lbs' : 'kg';
+
+      if (!gw || gw <= 0 || gw > wMax) {
+        setError(`Enter a valid goal weight (${wUnit}).`);
+        return false;
+      }
+      if (!form.goalTargetDate) {
+        setError('Please select or enter a target date.');
+        return false;
+      }
+    }
     return true;
   };
 
@@ -322,10 +343,12 @@ export default function OnboardingScreen() {
       age: parseInt(form.age, 10),
       sex: form.sex,
       activityLevel: form.activityLevel,
+      goalWeightKg: toMetricWeight(form.goalWeightKg, unitSystem),
+      goalTargetDate: form.goalTargetDate,
     });
   };
 
-  const preview = step === 4 ? calcPreview(form, unitSystem) : null;
+  const preview = step === 5 ? calcPreview(form, unitSystem) : null;
 
   const goalColors: Record<GoalMode, string> = {
     bulk: '#f59e0b',
@@ -481,8 +504,106 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {/* ── Step 3: Activity level ── */}
+          {/* ── Step 3: Goal weight & target date ── */}
           {step === 3 && (
+            <View>
+              <Text className="mb-1 text-2xl font-bold text-white">Goal weight</Text>
+              <Text className="mb-8 text-sm text-zinc-400">When do you want to reach it?</Text>
+
+              {/* Goal weight input */}
+              <View className="mb-6">
+                <Text className="mb-2 text-sm text-zinc-400">
+                  Goal weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+                </Text>
+                <TextInput
+                  testID="onboard-goal-weight-input"
+                  className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
+                  placeholder={unitSystem === 'metric' ? '75' : '165'}
+                  placeholderTextColor="#52525b"
+                  keyboardType="decimal-pad"
+                  value={form.goalWeightKg}
+                  onChangeText={(v) => set('goalWeightKg', v)}
+                />
+              </View>
+
+              {/* Preset date buttons */}
+              {form.goalWeightKg && !error ? (
+                <View className="mb-6">
+                  <Text className="mb-3 text-sm text-zinc-400">Target date</Text>
+                  {(() => {
+                    const currentWeight = parseFloat(form.weightKg);
+                    const goalWeight = parseFloat(form.goalWeightKg);
+                    if (!currentWeight || !goalWeight) return null;
+
+                    const presets = getPresetDates(
+                      currentWeight,
+                      goalWeight,
+                      form.goalMode,
+                      unitSystem,
+                    );
+                    const paceNames: ('slow' | 'normal' | 'fast')[] = ['slow', 'normal', 'fast'];
+
+                    return (
+                      <View className="gap-2">
+                        {paceNames.map((pace) => {
+                          const isoDate = presets[pace];
+                          const isSelected = form.goalTargetDate === isoDate;
+                          const label = getPaceLabel(
+                            currentWeight,
+                            goalWeight,
+                            form.goalMode,
+                            unitSystem,
+                            pace,
+                          );
+                          const dateStr = formatTargetDate(isoDate);
+
+                          return (
+                            <TouchableOpacity
+                              key={pace}
+                              testID={`onboard-preset-${pace}`}
+                              onPress={() => set('goalTargetDate', isoDate)}
+                              className={`rounded-xl border p-4 ${
+                                isSelected
+                                  ? 'border-brand-400 bg-brand-400/10'
+                                  : 'border-surface-border bg-surface-card'
+                              }`}
+                            >
+                              <Text
+                                className={`text-sm font-medium ${isSelected ? 'text-brand-400' : 'text-zinc-300'}`}
+                              >
+                                {pace.charAt(0).toUpperCase() + pace.slice(1)} — {label}
+                              </Text>
+                              <Text
+                                className={`mt-1 text-xs ${isSelected ? 'text-brand-400/80' : 'text-zinc-500'}`}
+                              >
+                                {dateStr}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    );
+                  })()}
+                </View>
+              ) : null}
+
+              {/* Manual date input fallback */}
+              <View>
+                <Text className="mb-2 text-sm text-zinc-400">Or enter a custom date</Text>
+                <TextInput
+                  testID="onboard-custom-date-input"
+                  className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
+                  placeholder="2026-06-15T00:00:00Z"
+                  placeholderTextColor="#52525b"
+                  value={form.goalTargetDate}
+                  onChangeText={(v) => set('goalTargetDate', v)}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* ── Step 4: Activity level ── */}
+          {step === 4 && (
             <View>
               <Text className="mb-1 text-2xl font-bold text-white">Activity level</Text>
               <Text className="mb-8 text-sm text-zinc-400">
@@ -510,8 +631,8 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {/* ── Step 4: TDEE preview ── */}
-          {step === 4 && (
+          {/* ── Step 5: TDEE preview ── */}
+          {step === 5 && (
             <View>
               <Text className="mb-1 text-2xl font-bold text-white">Your targets</Text>
               <Text className="mb-8 text-sm text-zinc-400">

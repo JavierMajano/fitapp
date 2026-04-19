@@ -82,6 +82,8 @@ export async function completeOnboard(
         age: input.age,
         sex: input.sex,
         activityLevel: input.activityLevel,
+        goalWeightKg: input.goalWeightKg,
+        goalTargetDate: new Date(input.goalTargetDate),
         ...targets,
       },
     }),
