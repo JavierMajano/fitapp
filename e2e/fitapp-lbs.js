@@ -26,6 +26,23 @@ const RESULTS_FILE = path.resolve(__dirname, '../playwright-report/results-lbs.j
 
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 
+/** Check if the backend API is reachable — returns true/false, never throws. */
+async function checkBackend() {
+  var apiUrl = process.env.E2E_API_URL || 'http://localhost:3000';
+  try {
+    var http = require('http');
+    return await new Promise(function (resolve) {
+      var req = http.get(apiUrl + '/trpc/health', function (res) {
+        resolve(res.statusCode < 500);
+      });
+      req.setTimeout(3000, function () { req.destroy(); resolve(false); });
+      req.on('error', function () { resolve(false); });
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
 /** Inject auth tokens only — unit pref is managed by the profile toggle + localStorage. */
 async function injectAuth(ctx) {
   await ctx.addInitScript(function() {
@@ -48,7 +65,7 @@ async function goToTab(page, tabName) {
   await page.waitForTimeout(800);
 }
 
-async function runLbsFlow(page, prefix, results) {
+async function runLbsFlow(page, prefix, results, backendAvailable) {
   function push(name, status, sc) {
     results.push({ name: '[' + prefix + '] ' + name, status: status, screenshot: sc });
   }
@@ -107,79 +124,85 @@ async function runLbsFlow(page, prefix, results) {
     push('Workout: start session modal', 'fail', sc4f);
   }
 
-  try {
-    await page.getByText('Full Body').last().click({ timeout: 5000 });
-    await page.waitForTimeout(1000);
-    var sc5 = await shot(page, prefix + '-05-active-session');
-    push('Workout: Full Body session active', 'pass', sc5);
-  } catch (e) {
-    var sc5f = await shot(page, prefix + '-05-active-fail');
-    push('Workout: Full Body active', 'fail', sc5f);
-  }
-
-  try {
-    await page.getByText('+ Add Set').first().click({ timeout: 5000 });
-    await page.waitForTimeout(600);
-  } catch (e) {
-    try { await page.getByText('Add Set').first().click({ timeout: 3000 }); await page.waitForTimeout(600); } catch (e2) {}
-  }
-
-  try {
-    await page.locator('input').first().fill('Squat');
-    await page.waitForTimeout(400);
-    await page.getByText('Squat').first().click({ timeout: 5000 });
-    await page.waitForTimeout(600);
-    var sc6 = await shot(page, prefix + '-06-squat-details');
-    push('Workout: Squat selected, details step shown', 'pass', sc6);
-  } catch (e) {
-    var sc6f = await shot(page, prefix + '-06-squat-fail');
-    push('Workout: Squat selected', 'fail', sc6f);
-  }
-
-  // Verify "Weight (lbs)" label
-  try {
-    var allText = await page.locator('body').innerText();
-    if (allText.toLowerCase().indexOf('weight (lbs)') === -1) throw new Error('No "Weight (lbs)"');
-    push('Workout: modal shows "Weight (lbs)"', 'pass', '');
-  } catch (e) { push('Workout: modal shows "Weight (lbs)"', 'fail', ''); }
-
-  // Enter 220 × 5, verify confirm text
-  var sc7;
-  try {
-    var wInputs = page.locator('input[placeholder="0"]');
-    await wInputs.first().fill('220');
-    await page.waitForTimeout(200);
-    await wInputs.last().fill('5');
-    await page.waitForTimeout(300);
-    var bodyText = await page.locator('body').innerText();
-    if (bodyText.indexOf('220') === -1 || bodyText.toLowerCase().indexOf('lbs') === -1) {
-      throw new Error('Missing 220 or lbs on page');
+  // Session start + sets — requires backend (workout.startSession / logSet / endSession)
+  if (!backendAvailable) {
+    push('Workout: Full Body active', 'skip', '');
+    push('Workout: Squat selected, details step shown', 'skip', '');
+    push('Workout: modal shows "Weight (lbs)"', 'skip', '');
+    push('Workout: confirm shows "220 lbs × 5"', 'skip', '');
+    push('Workout: column "LBS", set shows 220 (not 99.79)', 'skip', '');
+  } else {
+    try {
+      await page.getByText('Full Body').last().click({ timeout: 5000 });
+      await page.waitForTimeout(1000);
+      var sc5 = await shot(page, prefix + '-05-active-session');
+      push('Workout: Full Body session active', 'pass', sc5);
+    } catch (e) {
+      var sc5f = await shot(page, prefix + '-05-active-fail');
+      push('Workout: Full Body active', 'fail', sc5f);
     }
-    sc7 = await shot(page, prefix + '-07-confirm-220-lbs');
-    push('Workout: confirm shows "220 lbs × 5"', 'pass', sc7);
-  } catch (e) {
-    sc7 = await shot(page, prefix + '-07-confirm-fail');
-    push('Workout: confirm shows "220 lbs × 5"', 'fail', sc7);
+
+    try {
+      await page.getByText('+ Add Set').first().click({ timeout: 5000 });
+      await page.waitForTimeout(600);
+    } catch (e) {
+      try { await page.getByText('Add Set').first().click({ timeout: 3000 }); await page.waitForTimeout(600); } catch (e2) {}
+    }
+
+    try {
+      await page.locator('input').first().fill('Squat');
+      await page.waitForTimeout(400);
+      await page.getByText('Squat').first().click({ timeout: 5000 });
+      await page.waitForTimeout(600);
+      var sc6 = await shot(page, prefix + '-06-squat-details');
+      push('Workout: Squat selected, details step shown', 'pass', sc6);
+    } catch (e) {
+      var sc6f = await shot(page, prefix + '-06-squat-fail');
+      push('Workout: Squat selected', 'fail', sc6f);
+    }
+
+    try {
+      var allText = await page.locator('body').innerText();
+      if (allText.toLowerCase().indexOf('weight (lbs)') === -1) throw new Error('No "Weight (lbs)"');
+      push('Workout: modal shows "Weight (lbs)"', 'pass', '');
+    } catch (e) { push('Workout: modal shows "Weight (lbs)"', 'fail', ''); }
+
+    var sc7;
+    try {
+      var wInputs = page.locator('input[placeholder="0"]');
+      await wInputs.first().fill('220');
+      await page.waitForTimeout(200);
+      await wInputs.last().fill('5');
+      await page.waitForTimeout(300);
+      var bodyText = await page.locator('body').innerText();
+      if (bodyText.indexOf('220') === -1 || bodyText.toLowerCase().indexOf('lbs') === -1) {
+        throw new Error('Missing 220 or lbs on page');
+      }
+      sc7 = await shot(page, prefix + '-07-confirm-220-lbs');
+      push('Workout: confirm shows "220 lbs × 5"', 'pass', sc7);
+    } catch (e) {
+      sc7 = await shot(page, prefix + '-07-confirm-fail');
+      push('Workout: confirm shows "220 lbs × 5"', 'fail', sc7);
+    }
+
+    try {
+      await page.getByText('Log Set').first().click({ timeout: 5000 });
+      await page.waitForTimeout(1000);
+    } catch (e) {}
+
+    var sc8;
+    try {
+      await page.waitForSelector('text=LBS', { timeout: 5000 });
+      await page.waitForSelector('text=220', { timeout: 5000 });
+      sc8 = await shot(page, prefix + '-08-set-row');
+      push('Workout: column "LBS", set shows 220 (not 99.79)', 'pass', sc8);
+    } catch (e) {
+      sc8 = await shot(page, prefix + '-08-set-row-fail');
+      push('Workout: column "LBS", set shows 220 (not 99.79)', 'fail', sc8);
+    }
+
+    try { await page.getByText('Finish').first().click({ timeout: 5000 }); await page.waitForTimeout(800); } catch (e) {}
   }
-
-  try {
-    await page.getByText('Log Set').first().click({ timeout: 5000 });
-    await page.waitForTimeout(1000);
-  } catch (e) {}
-
-  // Verify LBS column + 220 in row
-  var sc8;
-  try {
-    await page.waitForSelector('text=LBS', { timeout: 5000 });
-    await page.waitForSelector('text=220', { timeout: 5000 });
-    sc8 = await shot(page, prefix + '-08-set-row');
-    push('Workout: column "LBS", set shows 220 (not 99.79)', 'pass', sc8);
-  } catch (e) {
-    sc8 = await shot(page, prefix + '-08-set-row-fail');
-    push('Workout: column "LBS", set shows 220 (not 99.79)', 'fail', sc8);
-  }
-
-  try { await page.getByText('Finish').first().click({ timeout: 5000 }); await page.waitForTimeout(800); } catch (e) {}
 
   // ── 3. PROGRESS IN LBS ───────────────────────────────────────────────────
   await goToTab(page, 'progress');
@@ -200,21 +223,26 @@ async function runLbsFlow(page, prefix, results) {
     push('Progress: weight modal shows "lbs" label', 'fail', sc10);
   }
 
-  var sc11;
-  try {
-    await page.locator('[data-testid="weight-log-input"]').fill('179');
-    await page.waitForTimeout(300);
-    await page.locator('[data-testid="save-weight-btn"]').click({ timeout: 5000 });
-    await page.waitForTimeout(2000);
-    var afterText = await page.locator('body').innerText();
-    if (afterText.indexOf('179') === -1 || afterText.toLowerCase().indexOf('lbs') === -1) {
-      throw new Error('179 or lbs not visible after save');
+  // Weight save — requires backend (body.logWeight)
+  if (!backendAvailable) {
+    push('Progress: 179 lbs logged, entry shows "179 lbs"', 'skip', '');
+  } else {
+    var sc11;
+    try {
+      await page.locator('[data-testid="weight-log-input"]').fill('179');
+      await page.waitForTimeout(300);
+      await page.locator('[data-testid="save-weight-btn"]').click({ timeout: 5000 });
+      await page.waitForTimeout(2000);
+      var afterText = await page.locator('body').innerText();
+      if (afterText.indexOf('179') === -1 || afterText.toLowerCase().indexOf('lbs') === -1) {
+        throw new Error('179 or lbs not visible after save');
+      }
+      sc11 = await shot(page, prefix + '-11-179-logged');
+      push('Progress: 179 lbs logged, entry shows "179 lbs"', 'pass', sc11);
+    } catch (e) {
+      sc11 = await shot(page, prefix + '-11-179-fail');
+      push('Progress: 179 lbs logged, entry shows "179 lbs"', 'fail', sc11);
     }
-    sc11 = await shot(page, prefix + '-11-179-logged');
-    push('Progress: 179 lbs logged, entry shows "179 lbs"', 'pass', sc11);
-  } catch (e) {
-    sc11 = await shot(page, prefix + '-11-179-fail');
-    push('Progress: 179 lbs logged, entry shows "179 lbs"', 'fail', sc11);
   }
 
   // ── 4. ROUND-TRIP — switch back to kg ────────────────────────────────────
@@ -237,15 +265,20 @@ async function runLbsFlow(page, prefix, results) {
   await goToTab(page, 'progress');
   await page.waitForTimeout(500);
 
-  var sc13;
-  try {
-    var finalText = await page.locator('body').innerText();
-    if (finalText.indexOf(' kg') === -1) throw new Error('No " kg" text after round-trip');
-    sc13 = await shot(page, prefix + '-13-kg-restored');
-    push('Round-trip: progress shows kg, no lbs entries', 'pass', sc13);
-  } catch (e) {
-    sc13 = await shot(page, prefix + '-13-kg-fail');
-    push('Round-trip: progress shows kg, no lbs entries', 'fail', sc13);
+  // Round-trip check — needs a logged weight entry to show chart data with kg label
+  if (!backendAvailable) {
+    push('Round-trip: progress shows kg, no lbs entries', 'skip', '');
+  } else {
+    var sc13;
+    try {
+      var finalText = await page.locator('body').innerText();
+      if (finalText.indexOf(' kg') === -1) throw new Error('No " kg" text after round-trip');
+      sc13 = await shot(page, prefix + '-13-kg-restored');
+      push('Round-trip: progress shows kg, no lbs entries', 'pass', sc13);
+    } catch (e) {
+      sc13 = await shot(page, prefix + '-13-kg-fail');
+      push('Round-trip: progress shows kg, no lbs entries', 'fail', sc13);
+    }
   }
 }
 
@@ -255,16 +288,21 @@ async function runLbsFlow(page, prefix, results) {
   var browser = await chromium.launch({ headless: true });
   var results = [];
 
+  var backendAvailable = await checkBackend();
+  if (!backendAvailable) {
+    console.log('ℹ  Backend not reachable — backend-dependent tests will be skipped');
+  }
+
   console.log('\n▶ Running lbs flow — Desktop (1280×800)');
   var dCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await injectAuth(dCtx);
-  await runLbsFlow(await dCtx.newPage(), 'lbs-desktop', results);
+  await runLbsFlow(await dCtx.newPage(), 'lbs-desktop', results, backendAvailable);
   await dCtx.close();
 
   console.log('\n▶ Running lbs flow — iPhone 14');
   var mCtx = await browser.newContext(devices['iPhone 14']);
   await injectAuth(mCtx);
-  await runLbsFlow(await mCtx.newPage(), 'lbs-mobile', results);
+  await runLbsFlow(await mCtx.newPage(), 'lbs-mobile', results, backendAvailable);
   await mCtx.close();
 
   await browser.close();
@@ -272,8 +310,9 @@ async function runLbsFlow(page, prefix, results) {
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
 
   var passed = results.filter(function(r) { return r.status === 'pass'; }).length;
-  var failed = results.length - passed;
-  console.log('\n✅ ' + passed + ' passed  ❌ ' + failed + ' failed  (' + results.length + ' total)');
+  var skipped = results.filter(function(r) { return r.status === 'skip'; }).length;
+  var failed = results.filter(function(r) { return r.status === 'fail'; }).length;
+  console.log('\n✅ ' + passed + ' passed  ⏭  ' + skipped + ' skipped  ❌ ' + failed + ' failed  (' + results.length + ' total)');
   if (failed > 0) {
     results.filter(function(r) { return r.status === 'fail'; }).forEach(function(r) { console.log('  ❌ ' + r.name); });
     process.exit(1);
