@@ -248,6 +248,8 @@ export default function OnboardingScreen() {
         proteinTargetG: updatedUser.proteinTargetG,
         carbsTargetG: updatedUser.carbsTargetG,
         fatTargetG: updatedUser.fatTargetG,
+        goalWeightKg: null,
+        goalTargetDate: null,
       };
       setUser(storeUser);
       // AuthGuard will see isOnboarded=true and redirect to tabs
