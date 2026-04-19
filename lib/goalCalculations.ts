@@ -94,6 +94,59 @@ export function formatTargetDate(isoString: string): string {
   }).format(date);
 }
 
+// ─── Goal status ──────────────────────────────────────────────────────────────
+
+export type GoalStatus = 'reached' | 'missed' | 'ahead' | 'on_track' | 'no_goal';
+
+/**
+ * Derive the dynamic goal status from current data.
+ * "ahead" = required remaining pace is <80% of normal (0.5 kg/week).
+ */
+export function getGoalStatus(
+  currentWeightKg: number | null,
+  goalWeightKg: number | null,
+  goalTargetDate: string | null,
+  goalMode: GoalMode | null,
+): GoalStatus {
+  if (!currentWeightKg || !goalWeightKg || !goalMode) return 'no_goal';
+
+  const isCut = goalMode === 'cut';
+  const isBulk = goalMode === 'bulk';
+
+  // Reached?
+  if (isCut && currentWeightKg <= goalWeightKg + 0.5) return 'reached';
+  if (isBulk && currentWeightKg >= goalWeightKg - 0.5) return 'reached';
+  if (goalMode === 'maintenance' && Math.abs(currentWeightKg - goalWeightKg) < 1) return 'reached';
+
+  if (!goalTargetDate) return 'on_track';
+
+  const now = Date.now();
+  const targetMs = new Date(goalTargetDate).getTime();
+
+  // Missed?
+  if (targetMs < now) return 'missed';
+
+  // Ahead of pace? (required pace < 80% of normal 0.5 kg/week)
+  const daysRemaining = (targetMs - now) / 86_400_000;
+  const remaining = Math.abs(currentWeightKg - goalWeightKg);
+  const requiredPerDay = remaining / Math.max(daysRemaining, 1);
+  const normalPerDay = 0.5 / 7;
+  if (requiredPerDay < normalPerDay * 0.8) return 'ahead';
+
+  return 'on_track';
+}
+
+export const GOAL_STATUS_META: Record<
+  GoalStatus,
+  { label: string; bg: string; color: string } | null
+> = {
+  reached: { label: '🎯 Goal reached', bg: 'rgba(26,158,110,0.15)', color: '#1a9e6e' },
+  missed: { label: '⚠ Goal missed', bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
+  ahead: { label: '⚡ Ahead of pace', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
+  on_track: { label: '✓ On track', bg: 'rgba(26,158,110,0.15)', color: '#1a9e6e' },
+  no_goal: null,
+};
+
 /** Get human-readable pace label based on goal mode and weeks. */
 export function getPaceLabel(
   currentWeight: number,
