@@ -13,8 +13,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GoalWeightWidget } from '@/components/GoalWeightWidget';
+import { ProgressChartWidget } from '@/components/ProgressChartWidget';
 import { trpc } from '@/lib/trpc';
 import type { UnitSystem } from '@/lib/units';
+import type { GoalMode } from '@/store/auth';
 import { useAuthStore } from '@/store/auth';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
@@ -271,20 +274,20 @@ export default function ProfileScreen() {
               ))}
             </View>
 
-            {/* Goal weight */}
-            {user?.goalWeightKg != null && (
-              <View className="mb-4 rounded-2xl border border-surface-border bg-surface-card p-4">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-sm text-zinc-400">Goal weight</Text>
-                  <Text className="text-sm font-semibold text-white">{user.goalWeightKg} kg</Text>
-                </View>
-                {user.goalTargetDate && (
-                  <Text className="mt-1 text-xs text-zinc-500">
-                    Target: {new Date(user.goalTargetDate).toLocaleDateString()}
-                  </Text>
-                )}
-              </View>
-            )}
+            {/* Goal weight widget */}
+            <GoalWeightWidget
+              currentWeightKg={user?.weightKg ?? null}
+              goalWeightKg={user?.goalWeightKg ?? null}
+              goalTargetDate={user?.goalTargetDate ?? null}
+              goalMode={(user?.goalMode as GoalMode | null) ?? null}
+              unitSystem={unitSystem}
+            />
+
+            {/* Progress chart widget */}
+            <ProgressChartWidget
+              goalWeightKg={user?.goalWeightKg ?? null}
+              unitSystem={unitSystem}
+            />
 
             {/* Settings rows */}
             <Text className="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-400">
