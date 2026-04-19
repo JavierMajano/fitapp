@@ -3,7 +3,10 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../env';
+import type { PrismaClient } from '../db';
 import type { SignUpInput, SignInInput } from '../schemas';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SafeUser = {
   id: string;
@@ -11,80 +14,80 @@ export type SafeUser = {
   name: string;
   avatarUrl: string | null;
   goalMode: string | null;
+  weightKg: number | null;
   tdeeCalories: number | null;
   calorieTarget: number | null;
   proteinTargetG: number | null;
   carbsTargetG: number | null;
   fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: Date | null;
   isOnboarded: boolean;
 };
 
-type StoredUser = SafeUser & { password: string };
+type DbUser = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  goalMode: string | null;
+  weightKg: number | null;
+  tdeeCalories: number | null;
+  calorieTarget: number | null;
+  proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: Date | null;
+};
 
-// In-memory store — shared across all services in this process
-export const users = new Map<string, StoredUser>();
-let nextId = 1;
-
-/** Reset in-memory state between test runs. */
-export function clearUsers(): void {
-  users.clear();
-  nextId = 1;
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const JWT_EXPIRY = '30d';
 
 function signToken(userId: string, email: string): string {
-  return jwt.sign({ sub: userId, email }, env.JWT_SECRET, {
-    expiresIn: JWT_EXPIRY,
-  });
+  return jwt.sign({ sub: userId, email }, env.JWT_SECRET, { expiresIn: JWT_EXPIRY });
 }
 
-function toSafe({ password: _p, ...u }: StoredUser): SafeUser {
-  return u;
+function toSafe(user: DbUser & { passwordHash?: string | null }): SafeUser {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _pw, ...rest } = user as DbUser & { passwordHash?: string | null };
+  return { ...rest, isOnboarded: rest.goalMode !== null };
 }
+
+// ─── Service functions ────────────────────────────────────────────────────────
 
 export async function signUp(
   input: SignUpInput,
-  _db: unknown,
+  db: PrismaClient,
 ): Promise<{ token: string; user: SafeUser }> {
-  if ([...users.values()].some((u) => u.email === input.email)) {
+  const existing = await db.user.findUnique({ where: { email: input.email } });
+  if (existing) {
     throw new TRPCError({
       code: 'CONFLICT',
       message: 'An account with this email already exists.',
     });
   }
 
-  const id = String(nextId++);
-  const user: StoredUser = {
-    id,
-    email: input.email,
-    name: input.name,
-    avatarUrl: null,
-    goalMode: null,
-    tdeeCalories: null,
-    calorieTarget: null,
-    proteinTargetG: null,
-    carbsTargetG: null,
-    fatTargetG: null,
-    isOnboarded: false,
-    password: await bcrypt.hash(input.password, 10),
-  };
-  users.set(id, user);
+  const passwordHash = await bcrypt.hash(input.password, 10);
+  const user = await db.user.create({
+    data: { email: input.email, name: input.name, passwordHash },
+  });
 
-  return { token: signToken(id, input.email), user: toSafe(user) };
+  return { token: signToken(user.id, user.email), user: toSafe(user) };
 }
 
 export async function signIn(
   input: SignInInput,
-  _db: unknown,
+  db: PrismaClient,
 ): Promise<{ token: string; user: SafeUser }> {
-  const user = [...users.values()].find((u) => u.email === input.email);
+  const user = await db.user.findUnique({ where: { email: input.email } });
 
-  if (!user) {
+  if (!user || !user.passwordHash) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' });
   }
 
-  const passwordMatch = await bcrypt.compare(input.password, user.password);
+  const passwordMatch = await bcrypt.compare(input.password, user.passwordHash);
   if (!passwordMatch) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password.' });
   }
@@ -92,8 +95,8 @@ export async function signIn(
   return { token: signToken(user.id, user.email), user: toSafe(user) };
 }
 
-export async function getSafeUser(userId: string, _db: unknown): Promise<SafeUser> {
-  const user = users.get(userId);
+export async function getSafeUser(userId: string, db: PrismaClient): Promise<SafeUser> {
+  const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
   return toSafe(user);
 }

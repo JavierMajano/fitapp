@@ -188,7 +188,7 @@ async function runLbsFlow(page, prefix, results) {
 
   var sc10;
   try {
-    await page.getByText('Log weight').first().click({ timeout: 5000 });
+    await page.locator('[data-testid="log-weight-btn"]').click({ timeout: 5000 });
     await page.waitForTimeout(600);
     await page.waitForSelector('text=Log Body Weight', { timeout: 5000 });
     var modalText = await page.locator('body').innerText();
@@ -202,10 +202,10 @@ async function runLbsFlow(page, prefix, results) {
 
   var sc11;
   try {
-    await page.locator('input[placeholder="0.0"]').first().fill('179');
+    await page.locator('[data-testid="weight-log-input"]').fill('179');
     await page.waitForTimeout(300);
-    await page.getByText('Save Weight').first().click({ timeout: 5000 });
-    await page.waitForTimeout(900);
+    await page.locator('[data-testid="save-weight-btn"]').click({ timeout: 5000 });
+    await page.waitForTimeout(2000);
     var afterText = await page.locator('body').innerText();
     if (afterText.indexOf('179') === -1 || afterText.toLowerCase().indexOf('lbs') === -1) {
       throw new Error('179 or lbs not visible after save');

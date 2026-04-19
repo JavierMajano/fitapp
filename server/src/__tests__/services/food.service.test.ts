@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as foodService from '../../services/food.service';
@@ -230,5 +231,144 @@ describe('foodService.searchFood', () => {
     const results = await foodService.searchFood('apple', redis as never);
 
     expect(results).toEqual([]);
+  });
+});
+
+// ─── getDailyFoodLog ──────────────────────────────────────────────────────────
+
+describe('foodService.getDailyFoodLog', () => {
+  it('returns food log with entries for a date', async () => {
+    const mockLog = {
+      id: 'log-1',
+      userId: 'user-1',
+      logDate: new Date('2026-04-18'),
+      totalCalories: 500,
+      totalProteinG: 40,
+      totalCarbsG: 60,
+      totalFatG: 10,
+      totalFiberG: 5,
+      entries: [{ id: 'entry-1', mealType: 'breakfast', calories: 500, quantityGrams: 150 }],
+    };
+    const db = {
+      foodLog: { findUnique: vi.fn().mockResolvedValue(mockLog) },
+    } as any;
+
+    const result = await foodService.getDailyFoodLog('user-1', '2026-04-18', db);
+
+    expect(result).toEqual(mockLog);
+    expect(db.foodLog.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ include: { entries: true } }),
+    );
+  });
+
+  it('returns null when no log exists for date', async () => {
+    const db = { foodLog: { findUnique: vi.fn().mockResolvedValue(null) } } as any;
+    const result = await foodService.getDailyFoodLog('user-1', '2026-04-18', db);
+    expect(result).toBeNull();
+  });
+});
+
+// ─── logFoodEntry ─────────────────────────────────────────────────────────────
+
+describe('foodService.logFoodEntry', () => {
+  const INPUT = {
+    foodItem: {
+      name: 'Chicken Breast',
+      brand: 'USDA',
+      barcode: null,
+      source: 'usda',
+      sourceRefId: '123456',
+      caloriesPer100g: 120,
+      proteinPer100g: 22.5,
+      carbsPer100g: 0,
+      fatPer100g: 2.6,
+    },
+    mealType: 'breakfast' as const,
+    quantityGrams: 150,
+    calories: 180,
+    proteinG: 33.75,
+    carbsG: 0,
+    fatG: 3.9,
+    date: '2026-04-18',
+  };
+
+  it('upserts food item, day log and creates entry', async () => {
+    const FOOD_ITEM_ID = 'item-1';
+    const mockEntry = {
+      id: 'entry-1',
+      foodItemId: FOOD_ITEM_ID,
+      foodLogId: 'log-1',
+      mealType: INPUT.mealType,
+      quantityGrams: INPUT.quantityGrams,
+      calories: INPUT.calories,
+      proteinG: INPUT.proteinG,
+      carbsG: INPUT.carbsG,
+      fatG: INPUT.fatG,
+      fiberG: 0,
+      loggedAt: new Date(),
+      editedAt: null,
+    };
+    const db = {
+      foodItem: {
+        upsert: vi.fn().mockResolvedValue({ id: FOOD_ITEM_ID, name: INPUT.foodItem.name }),
+      },
+      foodLog: {
+        upsert: vi.fn().mockResolvedValue({ id: 'log-1' }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      foodLogEntry: { create: vi.fn().mockResolvedValue(mockEntry) },
+    } as any;
+
+    const result = await foodService.logFoodEntry('user-1', INPUT, db);
+
+    expect(result).toEqual(mockEntry);
+    expect(db.foodItem.upsert).toHaveBeenCalledOnce(); // upsert food item
+    expect(db.foodLog.upsert).toHaveBeenCalledOnce(); // upsert day log
+    expect(db.foodLogEntry.create).toHaveBeenCalledOnce();
+    expect(db.foodLog.update).toHaveBeenCalledOnce(); // update totals
+  });
+});
+
+// ─── deleteFoodEntry ──────────────────────────────────────────────────────────
+
+describe('foodService.deleteFoodEntry', () => {
+  it('deletes entry and returns { success: true }', async () => {
+    const db = {
+      foodLogEntry: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'e-1',
+          foodLogId: 'log-1',
+          foodLog: { userId: 'user-1' },
+        }),
+        delete: vi.fn().mockResolvedValue({}),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      foodLog: { update: vi.fn().mockResolvedValue({}) },
+    } as any;
+
+    const result = await foodService.deleteFoodEntry('user-1', 'e-1', db);
+    expect(result).toEqual({ success: true });
+  });
+
+  it('throws NOT_FOUND when entry does not exist', async () => {
+    const db = { foodLogEntry: { findUnique: vi.fn().mockResolvedValue(null) } } as any;
+    await expect(foodService.deleteFoodEntry('user-1', 'missing-id', db)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('throws FORBIDDEN when entry belongs to another user', async () => {
+    const db = {
+      foodLogEntry: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'e-1',
+          foodLogId: 'log-1',
+          foodLog: { userId: 'other-user' },
+        }),
+      },
+    } as any;
+    await expect(foodService.deleteFoodEntry('user-1', 'e-1', db)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 });

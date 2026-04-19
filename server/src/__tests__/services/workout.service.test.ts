@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as workoutService from '../../services/workout.service';
 import { clearAll, seedRoutine } from '../../services/workout.service';
@@ -130,6 +130,135 @@ describe('workoutService.endSession', () => {
     await workoutService.endSession(USER_A, { sessionId }, {});
     await expect(workoutService.endSession(USER_A, { sessionId }, {})).rejects.toMatchObject({
       code: 'BAD_REQUEST',
+    });
+  });
+});
+
+// ─── listRoutinesDb ───────────────────────────────────────────────────────────
+
+describe('workoutService.listRoutinesDb', () => {
+  it('calls db.routine.findMany with correct filter', async () => {
+    const mockRoutines = [{ id: 'r-1', userId: null, name: 'PPL', isActive: true }];
+    const db = {
+      routine: { findMany: vi.fn().mockResolvedValue(mockRoutines) }, // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await workoutService.listRoutinesDb(USER_A, db);
+
+    expect(result).toEqual(mockRoutines);
+    expect(db.routine.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true }),
+      }),
+    );
+  });
+
+  it('passes null userId without extra OR clause for user routines', async () => {
+    const db = {
+      routine: { findMany: vi.fn().mockResolvedValue([]) }, // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await workoutService.listRoutinesDb(null, db);
+    expect(db.routine.findMany).toHaveBeenCalled();
+  });
+});
+
+// ─── getSessionsByDate ────────────────────────────────────────────────────────
+
+describe('workoutService.getSessionsByDate', () => {
+  it('queries sessions for correct userId and date range', async () => {
+    const mockSessions = [
+      { id: 's-1', userId: USER_A, name: 'Push', startedAt: new Date('2026-04-18'), sets: [] },
+    ];
+    const db = {
+      workoutSession: { findMany: vi.fn().mockResolvedValue(mockSessions) },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await workoutService.getSessionsByDate(USER_A, '2026-04-18', db);
+
+    expect(result).toEqual(mockSessions);
+    expect(db.workoutSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: USER_A }) }),
+    );
+  });
+});
+
+// ─── updateSet ────────────────────────────────────────────────────────────────
+
+describe('workoutService.updateSet', () => {
+  it('updates set and sets editedAt', async () => {
+    const mockSet = {
+      id: 'set-1',
+      sessionId: 's-1',
+      exerciseId: 'ex-1',
+      setNumber: 1,
+      weightKg: 90,
+      reps: 8,
+      editedAt: new Date(),
+      session: { userId: USER_A },
+    };
+    const db = {
+      sessionSet: {
+        findUnique: vi.fn().mockResolvedValue(mockSet),
+        update: vi.fn().mockResolvedValue({ ...mockSet, weightKg: 90 }),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await workoutService.updateSet(USER_A, { setId: 'set-1', weightKg: 90 }, db);
+    expect(result.weightKg).toBe(90);
+  });
+
+  it('throws NOT_FOUND when set does not exist', async () => {
+    const db = {
+      sessionSet: { findUnique: vi.fn().mockResolvedValue(null) }, // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await expect(
+      workoutService.updateSet(USER_A, { setId: 'missing-set' }, db),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('throws FORBIDDEN when set belongs to another user', async () => {
+    const db = {
+      sessionSet: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'set-1',
+          session: { userId: USER_B },
+        }),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await expect(
+      workoutService.updateSet(USER_A, { setId: 'set-1', weightKg: 50 }, db),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+// ─── deleteSet ────────────────────────────────────────────────────────────────
+
+describe('workoutService.deleteSet', () => {
+  it('deletes set and returns { success: true }', async () => {
+    const db = {
+      sessionSet: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'set-1', session: { userId: USER_A } }),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await workoutService.deleteSet(USER_A, 'set-1', db);
+    expect(result).toEqual({ success: true });
+  });
+
+  it('throws FORBIDDEN when set belongs to another user', async () => {
+    const db = {
+      sessionSet: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'set-1', session: { userId: USER_B } }),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    await expect(workoutService.deleteSet(USER_A, 'set-1', db)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
     });
   });
 });

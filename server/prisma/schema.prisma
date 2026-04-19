@@ -25,6 +25,8 @@ model User {
   proteinTargetG Int?
   carbsTargetG   Int?
   fatTargetG     Int?
+  goalWeightKg   Float?
+  goalTargetDate DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -68,6 +70,7 @@ model BodyLog {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, loggedDate])
   @@map("body_logs")
 }
 

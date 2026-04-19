@@ -41,13 +41,20 @@ export function DateNav({ date, onPrev, onNext }: DateNavProps) {
 
   return (
     <View className="mb-4 flex-row items-center justify-between rounded-2xl border border-surface-border bg-surface-card px-2 py-2">
-      <TouchableOpacity onPress={onPrev} className="px-3 py-1">
+      <TouchableOpacity testID="date-nav-prev" onPress={onPrev} className="px-3 py-1">
         <Text className="text-xl text-white">‹</Text>
       </TouchableOpacity>
 
-      <Text className="text-sm font-medium text-white">{formatDate(date)}</Text>
+      <Text testID="date-nav-label" className="text-sm font-medium text-white">
+        {formatDate(date)}
+      </Text>
 
-      <TouchableOpacity onPress={onNext} disabled={atToday} className="px-3 py-1">
+      <TouchableOpacity
+        testID="date-nav-next"
+        onPress={onNext}
+        disabled={atToday}
+        className="px-3 py-1"
+      >
         <Text className={`text-xl ${atToday ? 'text-zinc-700' : 'text-white'}`}>›</Text>
       </TouchableOpacity>
     </View>

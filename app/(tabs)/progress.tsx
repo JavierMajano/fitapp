@@ -9,22 +9,29 @@ import {
   Pressable,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { trpc } from '@/lib/trpc';
 import { displayWeight, toMetricWeight, WEIGHT_BOUNDS, type UnitSystem } from '@/lib/units';
-import { useFitLog, caloriesForDate, type BodyWeightEntry } from '@/store/fitlog';
+import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string): string {
   const [, m, d] = dateStr.split('-');
-  return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
+  return `${parseInt(m ?? '0', 10)}/${parseInt(d ?? '0', 10)}`;
 }
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function nDaysAgo(n: number): string {
+  const d = new Date(Date.now() - n * 86_400_000);
+  return d.toISOString().slice(0, 10);
 }
 
 function lastNDays(n: number): string[] {
@@ -34,11 +41,48 @@ function lastNDays(n: number): string[] {
   });
 }
 
-function kgToDisplay(kg: number, unit: UnitSystem): number {
-  return unit === 'imperial' ? parseFloat((kg / 0.453592).toFixed(1)) : kg;
+// ─── Time range selector ──────────────────────────────────────────────────────
+
+type TimeRange = '1W' | '1M' | '3M';
+
+function TimeRangeSelector({
+  value,
+  onChange,
+}: {
+  value: TimeRange;
+  onChange: (r: TimeRange) => void;
+}) {
+  const OPTIONS: TimeRange[] = ['1W', '1M', '3M'];
+  return (
+    <View className="flex-row gap-1">
+      {OPTIONS.map((opt) => (
+        <TouchableOpacity
+          key={opt}
+          testID={`time-range-${opt.toLowerCase()}`}
+          onPress={() => onChange(opt)}
+          className={`rounded-lg px-3 py-1 ${value === opt ? 'bg-brand-400' : 'bg-surface-border'}`}
+        >
+          <Text className={`text-xs font-medium ${value === opt ? 'text-white' : 'text-zinc-400'}`}>
+            {opt}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
 }
 
-// ─── Bar chart ────────────────────────────────────────────────────────────────
+function rangeStartDate(range: TimeRange): string {
+  switch (range) {
+    case '1W':
+      return nDaysAgo(7);
+    case '1M':
+      return nDaysAgo(30);
+    case '3M':
+      return nDaysAgo(90);
+  }
+}
+
+// ─── Bar chart (custom SVG-free) ──────────────────────────────────────────────
 
 interface BarChartProps {
   bars: { label: string; value: number; maxValue: number; color: string }[];
@@ -86,9 +130,10 @@ interface LogWeightModalProps {
   onClose: () => void;
   onLog: (date: string, weightKg: number) => void;
   unitSystem: UnitSystem;
+  isPending: boolean;
 }
 
-function LogWeightModal({ visible, onClose, onLog, unitSystem }: LogWeightModalProps) {
+function LogWeightModal({ visible, onClose, onLog, unitSystem, isPending }: LogWeightModalProps) {
   const [weight, setWeight] = useState('');
   const today = todayKey();
   const unitLabel = unitSystem === 'metric' ? 'kg' : 'lbs';
@@ -101,7 +146,6 @@ function LogWeightModal({ visible, onClose, onLog, unitSystem }: LogWeightModalP
     const kg = toMetricWeight(String(val), unitSystem);
     onLog(today, kg);
     setWeight('');
-    onClose();
   }
 
   return (
@@ -134,6 +178,7 @@ function LogWeightModal({ visible, onClose, onLog, unitSystem }: LogWeightModalP
 
               <View className="mb-4 flex-row items-center gap-2">
                 <TextInput
+                  testID="weight-log-input"
                   style={{
                     flex: 1,
                     backgroundColor: '#222222',
@@ -156,10 +201,16 @@ function LogWeightModal({ visible, onClose, onLog, unitSystem }: LogWeightModalP
               </View>
 
               <TouchableOpacity
+                testID="save-weight-btn"
                 onPress={handleLog}
+                disabled={isPending}
                 className="items-center rounded-2xl bg-brand-400 py-4"
               >
-                <Text className="text-base font-semibold text-white">Save Weight</Text>
+                {isPending ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-base font-semibold text-white">Save Weight</Text>
+                )}
               </TouchableOpacity>
               <View style={{ height: Platform.OS === 'ios' ? 20 : 0 }} />
             </View>
@@ -170,74 +221,101 @@ function LogWeightModal({ visible, onClose, onLog, unitSystem }: LogWeightModalP
   );
 }
 
-// ─── Weight entry row ─────────────────────────────────────────────────────────
-
-function WeightRow({
-  entry,
-  onDelete,
-  unitSystem,
-}: {
-  entry: BodyWeightEntry;
-  onDelete: () => void;
-  unitSystem: UnitSystem;
-}) {
-  return (
-    <View className="flex-row items-center justify-between border-t border-surface-border py-3">
-      <Text className="text-sm text-zinc-400">{entry.date}</Text>
-      <Text className="text-base font-semibold text-white">
-        {displayWeight(entry.weightKg, unitSystem)}
-      </Text>
-      <TouchableOpacity onPress={onDelete} hitSlop={8}>
-        <Text className="text-lg text-zinc-600">×</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
   const [weightModalVisible, setWeightModalVisible] = useState(false);
+  const [weightRange, setWeightRange] = useState<TimeRange>('1W');
+  const [calorieRange, setCalorieRange] = useState<TimeRange>('1W');
 
-  const { foodEntries, bodyWeightEntries, addBodyWeight, removeBodyWeight, sessions } = useFitLog();
   const { unitSystem } = useUnitsStore();
+  const showError = useToastStore((s) => s.showError);
+  const utils = trpc.useUtils();
 
-  const days7 = lastNDays(7);
+  const today = todayKey();
 
-  // Weight chart — display values already converted to the active unit
-  const weightBars = days7.map((d) => {
-    const entry = bodyWeightEntries.find((e) => e.date === d);
-    const allDisplay = bodyWeightEntries.map((e) => kgToDisplay(e.weightKg, unitSystem));
-    const max = Math.max(...allDisplay, unitSystem === 'imperial' ? 220 : 100);
-    const value = entry ? kgToDisplay(entry.weightKg, unitSystem) : 0;
-    return { label: formatDate(d), value, maxValue: max, color: '#1a9e6e' };
+  const weightHistoryQuery = trpc.body.getHistory.useQuery(
+    { startDate: rangeStartDate(weightRange), endDate: today },
+    { staleTime: 60_000 },
+  );
+
+  const calorieHistoryQuery = trpc.progress.getCalorieHistory.useQuery(
+    { startDate: rangeStartDate(calorieRange), endDate: today },
+    { staleTime: 60_000 },
+  );
+
+  const logWeightMut = trpc.body.logWeight.useMutation({
+    onSuccess: () => {
+      setWeightModalVisible(false);
+      utils.body.getHistory.invalidate();
+    },
+    onError: (err) => showError(err.message),
   });
 
-  // Calorie chart (unit-agnostic)
-  const calorieBars = days7.map((d) => {
-    const kcal = caloriesForDate(foodEntries, d);
-    return { label: formatDate(d), value: kcal, maxValue: 3000, color: '#f97316' };
-  });
+  // ── Weight chart data ──
+  const weightEntries = weightHistoryQuery.data ?? [];
+  const days7 = lastNDays(weightRange === '1W' ? 7 : weightRange === '1M' ? 30 : 90);
 
-  // Strength PRs from last 7 days
-  const recentSets = sessions
-    .filter((s) => days7.includes(s.date) && s.endedAt)
-    .flatMap((s) => s.sets);
-
-  const prMap: Record<string, { weightKg: number; reps: number }> = {};
-  for (const set of recentSets) {
-    const cur = prMap[set.exerciseName];
-    if (!cur || set.weightKg > cur.weightKg) {
-      prMap[set.exerciseName] = { weightKg: set.weightKg, reps: set.reps };
+  const weightBars = (() => {
+    if (weightRange === '1W') {
+      return days7.map((d) => {
+        const entry = weightEntries.find((e) => {
+          const entryDate = new Date(e.loggedDate).toISOString().slice(0, 10);
+          return entryDate === d;
+        });
+        const allDisplay = weightEntries.map((e) =>
+          unitSystem === 'imperial' ? e.weightKg / 0.453592 : e.weightKg,
+        );
+        const max = Math.max(...allDisplay, unitSystem === 'imperial' ? 220 : 100);
+        const value = entry
+          ? unitSystem === 'imperial'
+            ? parseFloat((entry.weightKg / 0.453592).toFixed(1))
+            : entry.weightKg
+          : 0;
+        return { label: formatDate(d), value, maxValue: max, color: '#1a9e6e' };
+      });
     }
-  }
-  const prs = Object.entries(prMap).slice(0, 5);
+    // For wider ranges, just show data points
+    return weightEntries.slice(-14).map((e) => {
+      const val =
+        unitSystem === 'imperial' ? parseFloat((e.weightKg / 0.453592).toFixed(1)) : e.weightKg;
+      return {
+        label: formatDate(new Date(e.loggedDate).toISOString().slice(0, 10)),
+        value: val,
+        maxValue: val * 1.2,
+        color: '#1a9e6e',
+      };
+    });
+  })();
 
-  // Weight trend
-  const sorted = [...bodyWeightEntries].sort((a, b) => a.date.localeCompare(b.date));
+  // ── Calorie chart data ──
+  const calPoints = calorieHistoryQuery.data ?? [];
+  const calorieBars = (() => {
+    if (weightRange === '1W') {
+      return lastNDays(7).map((d) => {
+        const point = calPoints.find((p) => p.date === d);
+        return {
+          label: formatDate(d),
+          value: point?.totalCalories ?? 0,
+          maxValue: Math.max(...calPoints.map((p) => p.totalCalories), 3000),
+          color: '#f97316',
+        };
+      });
+    }
+    return calPoints.slice(-14).map((p) => ({
+      label: formatDate(p.date),
+      value: p.totalCalories,
+      maxValue: Math.max(...calPoints.map((pp) => pp.totalCalories), 3000),
+      color: '#f97316',
+    }));
+  })();
+
+  // ── Weight trend ──
+  const sorted = [...weightEntries].sort(
+    (a, b) => new Date(a.loggedDate).getTime() - new Date(b.loggedDate).getTime(),
+  );
   const latestKg = sorted[sorted.length - 1]?.weightKg;
   const prevKg = sorted[sorted.length - 2]?.weightKg;
-
   const latestDisplay = latestKg !== undefined ? displayWeight(latestKg, unitSystem) : null;
   const deltaKg = latestKg !== undefined && prevKg !== undefined ? latestKg - prevKg : null;
   const deltaDisplay =
@@ -254,9 +332,9 @@ export default function ProgressScreen() {
         <View className="mb-4 flex-row items-center justify-between">
           <View>
             <Text className="text-2xl font-semibold text-white">Progress</Text>
-            <Text className="text-sm text-zinc-400">Last 7 days</Text>
           </View>
           <TouchableOpacity
+            testID="log-weight-btn"
             onPress={() => setWeightModalVisible(true)}
             className="rounded-xl bg-brand-400 px-4 py-2"
           >
@@ -265,103 +343,56 @@ export default function ProgressScreen() {
         </View>
 
         {/* Weight section */}
-        <View className="mb-4 rounded-3xl border border-surface-border bg-surface-card p-5">
-          <View className="mb-4 flex-row items-center justify-between">
+        <View
+          testID="weight-chart"
+          className="mb-4 rounded-3xl border border-surface-border bg-surface-card p-5"
+        >
+          <View className="mb-3 flex-row items-center justify-between">
             <Text className="text-sm font-semibold text-white">Body Weight</Text>
-            {latestDisplay !== null && (
-              <View className="flex-row items-baseline gap-2">
-                <Text className="text-lg font-bold text-white">{latestDisplay}</Text>
-                {deltaDisplay !== null && (
-                  <Text
-                    className={`text-xs font-medium ${parseFloat(deltaDisplay) < 0 ? 'text-brand-400' : parseFloat(deltaDisplay) > 0 ? 'text-red-400' : 'text-zinc-400'}`}
-                  >
-                    {parseFloat(deltaDisplay) > 0 ? '+' : ''}
-                    {deltaDisplay}
-                  </Text>
-                )}
-              </View>
-            )}
+            <TimeRangeSelector value={weightRange} onChange={setWeightRange} />
           </View>
-          <BarChart bars={weightBars} unit={unitSystem === 'metric' ? '' : ''} height={130} />
-        </View>
-
-        {/* Weight log list */}
-        {bodyWeightEntries.length > 0 && (
-          <View className="mb-4 rounded-2xl border border-surface-border bg-surface-card px-4 pb-1 pt-4">
-            <Text className="mb-1 text-xs font-medium uppercase tracking-wider text-zinc-400">
-              Weight log
-            </Text>
-            {[...bodyWeightEntries]
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .slice(0, 5)
-              .map((entry) => (
-                <WeightRow
-                  key={entry.id}
-                  entry={entry}
-                  unitSystem={unitSystem}
-                  onDelete={() => removeBodyWeight(entry.id)}
-                />
-              ))}
-          </View>
-        )}
-
-        {/* Calorie section */}
-        <View className="mb-4 rounded-3xl border border-surface-border bg-surface-card p-5">
-          <Text className="mb-4 text-sm font-semibold text-white">Calorie Intake</Text>
-          <BarChart bars={calorieBars} unit=" kcal" height={130} />
-        </View>
-
-        {/* Strength section */}
-        <View className="mb-4 rounded-3xl border border-surface-border bg-surface-card p-5">
-          <Text className="mb-3 text-sm font-semibold text-white">Strength PRs (7 days)</Text>
-          {prs.length === 0 ? (
-            <Text className="text-sm text-zinc-500">Complete a workout to see your PRs</Text>
+          {latestDisplay !== null && (
+            <View className="mb-2 flex-row items-baseline gap-2">
+              <Text className="text-lg font-bold text-white">{latestDisplay}</Text>
+              {deltaDisplay !== null && (
+                <Text
+                  className={`text-xs font-medium ${parseFloat(deltaDisplay) < 0 ? 'text-brand-400' : parseFloat(deltaDisplay) > 0 ? 'text-red-400' : 'text-zinc-400'}`}
+                >
+                  {parseFloat(deltaDisplay) > 0 ? '+' : ''}
+                  {deltaDisplay}
+                </Text>
+              )}
+            </View>
+          )}
+          {weightHistoryQuery.isFetching ? (
+            <View className="items-center py-8">
+              <ActivityIndicator color="#1a9e6e" />
+            </View>
+          ) : weightBars.length > 0 ? (
+            <BarChart bars={weightBars} unit="" height={130} />
           ) : (
-            prs.map(([exercise, { weightKg, reps }]) => (
-              <View
-                key={exercise}
-                className="flex-row items-center justify-between border-t border-surface-border py-3"
-              >
-                <Text className="flex-1 text-sm text-white" numberOfLines={1}>
-                  {exercise}
-                </Text>
-                <Text className="text-sm font-semibold text-brand-400">
-                  {displayWeight(weightKg, unitSystem)} × {reps}
-                </Text>
-              </View>
-            ))
+            <Text className="py-4 text-center text-sm text-zinc-500">No weight data yet</Text>
           )}
         </View>
 
-        {/* Workout frequency */}
-        <View className="mb-4 rounded-2xl border border-surface-border bg-surface-card p-4">
-          <Text className="mb-3 text-xs font-medium uppercase tracking-wider text-zinc-400">
-            Workout frequency (7 days)
-          </Text>
-          <View className="flex-row gap-2">
-            {days7.map((d) => {
-              const hasSession = sessions.some((s) => s.date === d && s.endedAt);
-              return (
-                <View key={d} className="flex-1 items-center">
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      backgroundColor: hasSession ? '#1a9e6e' : '#2e2e2e',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {hasSession && <Text style={{ fontSize: 10, color: '#fff' }}>✓</Text>}
-                  </View>
-                  <Text style={{ fontSize: 8, color: '#52525b', marginTop: 4 }}>
-                    {formatDate(d)}
-                  </Text>
-                </View>
-              );
-            })}
+        {/* Calorie section */}
+        <View
+          testID="calorie-chart"
+          className="mb-4 rounded-3xl border border-surface-border bg-surface-card p-5"
+        >
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-sm font-semibold text-white">Calorie Intake</Text>
+            <TimeRangeSelector value={calorieRange} onChange={setCalorieRange} />
           </View>
+          {calorieHistoryQuery.isFetching ? (
+            <View className="items-center py-8">
+              <ActivityIndicator color="#f97316" />
+            </View>
+          ) : calorieBars.length > 0 ? (
+            <BarChart bars={calorieBars} unit=" kcal" height={130} />
+          ) : (
+            <Text className="py-4 text-center text-sm text-zinc-500">No calorie data yet</Text>
+          )}
         </View>
 
         <View style={{ height: 32 }} />
@@ -370,8 +401,9 @@ export default function ProgressScreen() {
       <LogWeightModal
         visible={weightModalVisible}
         onClose={() => setWeightModalVisible(false)}
-        onLog={addBodyWeight}
+        onLog={(date, weightKg) => logWeightMut.mutate({ date, weightKg })}
         unitSystem={unitSystem}
+        isPending={logWeightMut.isPending}
       />
     </SafeAreaView>
   );

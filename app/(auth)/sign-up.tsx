@@ -121,7 +121,10 @@ export default function SignUpScreen() {
 
           {/* Error banner */}
           {error ? (
-            <View className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <View
+              testID="signup-error"
+              className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3"
+            >
               <Text className="text-sm text-red-400">{error}</Text>
             </View>
           ) : null}
@@ -160,6 +163,7 @@ export default function SignUpScreen() {
           <View className="mb-4">
             <Text className="mb-2 text-sm text-zinc-400">Name</Text>
             <TextInput
+              testID="signup-name-input"
               className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
               placeholder="Your name"
               placeholderTextColor="#52525b"
@@ -175,6 +179,7 @@ export default function SignUpScreen() {
           <View className="mb-4">
             <Text className="mb-2 text-sm text-zinc-400">Email</Text>
             <TextInput
+              testID="signup-email-input"
               className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
               placeholder="you@example.com"
               placeholderTextColor="#52525b"
@@ -191,6 +196,7 @@ export default function SignUpScreen() {
           <View className="mb-6">
             <Text className="mb-2 text-sm text-zinc-400">Password</Text>
             <TextInput
+              testID="signup-password-input"
               className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
               placeholder="Min. 8 characters"
               placeholderTextColor="#52525b"
@@ -204,6 +210,7 @@ export default function SignUpScreen() {
 
           {/* Sign up button */}
           <TouchableOpacity
+            testID="signup-btn"
             className={`items-center rounded-xl py-4 ${signUp.isPending ? 'bg-brand-400/60' : 'bg-brand-400'}`}
             onPress={handleSignUp}
             disabled={signUp.isPending || googleSignIn.isPending}
@@ -218,7 +225,10 @@ export default function SignUpScreen() {
           {/* Sign in link */}
           <View className="mt-6 flex-row justify-center">
             <Text className="text-zinc-400">Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/sign-in')}>
+            <TouchableOpacity
+              testID="goto-signin-link"
+              onPress={() => router.push('/(auth)/sign-in')}
+            >
               <Text className="font-medium text-brand-400">Sign In</Text>
             </TouchableOpacity>
           </View>

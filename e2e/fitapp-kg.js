@@ -62,20 +62,22 @@ async function runKgFlow(page, prefix, results) {
   await goToTab(page, 'food');
 
   try {
-    await page.waitForSelector('text=Oats', { timeout: 8000 });
+    // Phase 6: food tab uses real backend; no Zustand mock data.
+    // Check that the Food Log header (always rendered) is visible.
+    await page.waitForSelector('text=Food Log', { timeout: 8000 });
     var sc2 = await shot(page, prefix + '-02-food-default');
-    push('Food tab: seed data visible (Oats)', 'pass', sc2);
+    push('Food tab: renders with Food Log header', 'pass', sc2);
   } catch (e) {
     var sc2f = await shot(page, prefix + '-02-food-default-fail');
-    push('Food tab: seed data visible', 'fail', sc2f);
+    push('Food tab: renders with Food Log header', 'fail', sc2f);
   }
 
   // Open Add food modal
   try {
-    await page.getByText('+ Add food').first().click({ timeout: 5000 });
+    await page.locator('[data-testid="add-food-btn"]').click({ timeout: 5000 });
     await page.waitForTimeout(500);
   } catch (e) {
-    try { await page.getByText('Add food').first().click({ timeout: 3000 }); await page.waitForTimeout(500); } catch (e2) {}
+    try { await page.getByText('+ Add food').first().click({ timeout: 3000 }); await page.waitForTimeout(500); } catch (e2) {}
   }
 
   try {
@@ -88,12 +90,13 @@ async function runKgFlow(page, prefix, results) {
     push('Food modal: search step open', 'fail', sc3f);
   }
 
-  // Search salmon
+  // Search salmon — USDA API can be slow; use testID and extended wait
   try {
-    var searchInput = page.locator('input').first();
+    var searchInput = page.locator('[data-testid="food-search-input"]');
+    if ((await searchInput.count()) === 0) searchInput = page.locator('input').first();
     await searchInput.fill('salmon');
-    await page.waitForTimeout(400);
-    await page.getByText('Salmon').first().click({ timeout: 5000 });
+    await page.waitForTimeout(2500); // USDA API latency
+    await page.locator('[data-testid="food-result-0"]').click({ timeout: 15000 });
     await page.waitForTimeout(500);
     var sc4 = await shot(page, prefix + '-04-food-quantity');
     push('Food: salmon found and selected', 'pass', sc4);
@@ -136,19 +139,28 @@ async function runKgFlow(page, prefix, results) {
   } catch (e) {}
 
   try {
-    await page.getByText('Start session').first().click({ timeout: 8000 });
+    // Phase 6: use testID selector for reliability
+    await page.locator('[data-testid="start-session-btn"]').click({ timeout: 8000 });
     await page.waitForTimeout(500);
     var sc7 = await shot(page, prefix + '-07-start-session-modal');
     push('Workout: start session modal open', 'pass', sc7);
   } catch (e) {
     var sc7f = await shot(page, prefix + '-07-start-fail');
     push('Workout: start session modal', 'fail', sc7f);
+    // Try text fallback
+    try { await page.getByText('Start session').first().click({ timeout: 3000 }); await page.waitForTimeout(500); } catch (_) {}
   }
 
   try {
-    await page.getByText('Full Body').last().click({ timeout: 5000 });
+    // Try "Full Body" routine first; fall back to "Start Empty Session"
+    var fullBodyBtn = page.getByText('Full Body');
+    if ((await fullBodyBtn.count()) > 0) {
+      await fullBodyBtn.last().click({ timeout: 5000 });
+    } else {
+      await page.locator('[data-testid="start-empty-session-btn"]').click({ timeout: 5000 });
+    }
     await page.waitForTimeout(800);
-    await page.waitForSelector('text=+ Add Set', { timeout: 8000 });
+    await page.waitForSelector('[data-testid="add-set-btn"]', { timeout: 8000 });
     var sc8 = await shot(page, prefix + '-08-active-session');
     push('Workout: Full Body session started', 'pass', sc8);
   } catch (e) {
@@ -157,7 +169,7 @@ async function runKgFlow(page, prefix, results) {
   }
 
   try {
-    await page.getByText('+ Add Set').first().click({ timeout: 5000 });
+    await page.locator('[data-testid="add-set-btn"]').click({ timeout: 5000 });
     await page.waitForTimeout(500);
     var sc9 = await shot(page, prefix + '-09-log-set-exercise');
     push('Workout: log set modal open', 'pass', sc9);
@@ -167,9 +179,11 @@ async function runKgFlow(page, prefix, results) {
   }
 
   try {
-    await page.locator('input').first().fill('Squat');
-    await page.waitForTimeout(400);
-    await page.getByText('Squat').first().click({ timeout: 5000 });
+    var exerciseSearch = page.locator('[data-testid="exercise-search-input"]');
+    if ((await exerciseSearch.count()) === 0) exerciseSearch = page.locator('input').first();
+    await exerciseSearch.fill('Squat');
+    await page.waitForTimeout(500);
+    await page.locator('[data-testid="exercise-result-0"]').click({ timeout: 8000 });
     await page.waitForTimeout(500);
     var sc10 = await shot(page, prefix + '-10-log-set-details');
     push('Workout: Squat selected, details step', 'pass', sc10);
@@ -185,8 +199,8 @@ async function runKgFlow(page, prefix, results) {
     await wInputs.last().fill('5');
     await page.waitForTimeout(200);
 
-    await page.getByText('Log Set').first().click({ timeout: 5000 });
-    await page.waitForTimeout(800);
+    await page.locator('[data-testid="log-set-submit-btn"]').click({ timeout: 5000 });
+    await page.waitForTimeout(1000);
 
     await page.waitForSelector('text=Squat', { timeout: 5000 });
     var sc11 = await shot(page, prefix + '-11-squat-logged');
@@ -197,8 +211,10 @@ async function runKgFlow(page, prefix, results) {
   }
 
   try {
-    await page.getByText('Finish').first().click({ timeout: 5000 });
-    await page.waitForTimeout(1000);
+    // Close any open modal before finishing
+    try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+    await page.locator('[data-testid="finish-session-btn"]').click({ timeout: 5000 });
+    await page.waitForTimeout(1500);
     var sc12 = await shot(page, prefix + '-12-session-complete');
     push('Workout: session finished, card visible', 'pass', sc12);
   } catch (e) {
@@ -220,7 +236,7 @@ async function runKgFlow(page, prefix, results) {
   }
 
   try {
-    await page.getByText('Log weight').first().click({ timeout: 5000 });
+    await page.locator('[data-testid="log-weight-btn"]').click({ timeout: 5000 });
     await page.waitForTimeout(500);
     await page.waitForSelector('text=Log Body Weight', { timeout: 5000 });
     var sc14 = await shot(page, prefix + '-14-weight-modal');
@@ -231,12 +247,12 @@ async function runKgFlow(page, prefix, results) {
   }
 
   try {
-    await page.locator('input[placeholder="0.0"]').first().fill('81.2');
+    await page.locator('[data-testid="weight-log-input"]').fill('81.2');
     await page.waitForTimeout(300);
-    await page.getByText('Save Weight').first().click({ timeout: 5000 });
-    await page.waitForTimeout(800);
+    await page.locator('[data-testid="save-weight-btn"]').click({ timeout: 5000 });
+    await page.waitForTimeout(2000);
 
-    await page.waitForSelector('text=81.2', { timeout: 5000 });
+    await page.waitForSelector('text=81.2', { timeout: 8000 });
     var sc15 = await shot(page, prefix + '-15-weight-logged');
     push('Progress: 81.2 kg logged, chart updated', 'pass', sc15);
   } catch (e) {

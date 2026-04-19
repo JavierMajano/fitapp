@@ -16,6 +16,16 @@ async function resolveSession(req: Request, _res: Response): Promise<Session> {
   // Mobile clients send a Bearer JWT in the Authorization header
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
+
+    // Dev-bypass token: allows E2E tests to authenticate without a real JWT.
+    // Only active outside production. Maps to a stable seeded dev user.
+    if (token === 'dev-bypass-token' && env.NODE_ENV !== 'production') {
+      const devUser = await db.user.findUnique({ where: { email: 'dev@fitapp.test' } });
+      if (devUser) return { user: { id: devUser.id, email: devUser.email } };
+      // Dev user not yet seeded — fall through as unauthenticated
+      return null;
+    }
+
     try {
       const payload = jwt.verify(token, env.JWT_SECRET) as {
         sub: string;

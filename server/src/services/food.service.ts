@@ -1,8 +1,10 @@
+import { TRPCError } from '@trpc/server';
 import type Redis from 'ioredis';
 
+import type { PrismaClient } from '../db';
 import { env } from '../env';
 import { TTL } from '../redis';
-import type { FoodItemResult } from '../schemas';
+import type { FoodItemResult, LogFoodEntryInput, UpdateFoodEntryInput } from '../schemas';
 
 // ─── Open Food Facts ──────────────────────────────────────────────────────────
 
@@ -138,7 +140,8 @@ export async function getByBarcode(
 }
 
 export async function searchFood(query: string, redisClient: Redis): Promise<FoodItemResult[]> {
-  const apiKey = env.USDA_API_KEY;
+  // Use process.env directly so tests can override USDA_API_KEY at runtime
+  const apiKey = process.env['USDA_API_KEY'] ?? env.USDA_API_KEY;
   if (!apiKey) return [];
 
   const cacheKey = `food:search:${query.toLowerCase()}`;
@@ -157,4 +160,229 @@ export async function searchFood(query: string, redisClient: Redis): Promise<Foo
   } catch {
     return [];
   }
+}
+
+// ─── DB-backed food log functions ─────────────────────────────────────────────
+
+export type FoodLogEntry = {
+  id: string;
+  foodLogId: string;
+  foodItemId: string;
+  mealType: string;
+  quantityGrams: number;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  loggedAt: Date;
+  editedAt: Date | null;
+};
+
+export type DailyFoodLog = {
+  id: string;
+  userId: string;
+  logDate: Date;
+  totalCalories: number;
+  totalProteinG: number;
+  totalCarbsG: number;
+  totalFatG: number;
+  totalFiberG: number;
+  entries: FoodLogEntry[];
+};
+
+/** Get or return null for a user's food log on a given date (YYYY-MM-DD). */
+export async function getDailyFoodLog(
+  userId: string,
+  date: string,
+  db: PrismaClient,
+): Promise<DailyFoodLog | null> {
+  const logDate = new Date(date);
+  const log = await db.foodLog.findUnique({
+    where: { userId_logDate: { userId, logDate } },
+    include: { entries: true },
+  });
+  return log;
+}
+
+/**
+ * Log a food entry.
+ * Upserts the FoodItem by (source, sourceRefId), upserts the FoodLog day record,
+ * creates the FoodLogEntry, and updates day totals.
+ */
+export async function logFoodEntry(
+  userId: string,
+  input: LogFoodEntryInput,
+  db: PrismaClient,
+): Promise<FoodLogEntry> {
+  const logDate = new Date(input.date);
+
+  // Derive a stable sourceRefId so USDA/OFF items are deduplicated
+  const source = input.foodItem.source ?? 'custom';
+  const sourceRefId =
+    input.foodItem.sourceRefId ??
+    `custom:${input.foodItem.name.toLowerCase().replace(/\s+/g, '_')}`;
+
+  // Upsert the food item (no-op update so existing nutritional data is preserved)
+  const foodItem = await db.foodItem.upsert({
+    where: { source_sourceRefId: { source, sourceRefId } },
+    create: {
+      name: input.foodItem.name,
+      brand: input.foodItem.brand ?? null,
+      barcode: input.foodItem.barcode ?? null,
+      source,
+      sourceRefId,
+      caloriesPer100g: Math.round(input.foodItem.caloriesPer100g),
+      proteinPer100g: input.foodItem.proteinPer100g,
+      carbsPer100g: input.foodItem.carbsPer100g,
+      fatPer100g: input.foodItem.fatPer100g,
+      fiberPer100g: input.foodItem.fiberPer100g ?? null,
+    },
+    update: {},
+  });
+
+  // Ensure the day log exists
+  const dayLog = await db.foodLog.upsert({
+    where: { userId_logDate: { userId, logDate } },
+    create: {
+      userId,
+      logDate,
+      totalCalories: 0,
+      totalProteinG: 0,
+      totalCarbsG: 0,
+      totalFatG: 0,
+      totalFiberG: 0,
+    },
+    update: {},
+  });
+
+  // Create the entry
+  const entry = await db.foodLogEntry.create({
+    data: {
+      foodLogId: dayLog.id,
+      foodItemId: foodItem.id,
+      mealType: input.mealType,
+      quantityGrams: input.quantityGrams,
+      calories: input.calories,
+      proteinG: input.proteinG,
+      carbsG: input.carbsG,
+      fatG: input.fatG,
+      fiberG: input.fiberG ?? 0,
+    },
+  });
+
+  // Update day totals
+  await db.foodLog.update({
+    where: { id: dayLog.id },
+    data: {
+      totalCalories: { increment: input.calories },
+      totalProteinG: { increment: input.proteinG },
+      totalCarbsG: { increment: input.carbsG },
+      totalFatG: { increment: input.fatG },
+      totalFiberG: { increment: input.fiberG ?? 0 },
+    },
+  });
+
+  return entry;
+}
+
+/** Update quantity/meal type of an existing entry and recalculate day totals. */
+export async function updateFoodEntry(
+  userId: string,
+  input: UpdateFoodEntryInput,
+  db: PrismaClient,
+): Promise<FoodLogEntry> {
+  // Fetch entry + parent log to verify ownership
+  const entry = await db.foodLogEntry.findUnique({
+    where: { id: input.entryId },
+    include: { foodLog: true, foodItem: true },
+  });
+
+  if (!entry) throw new TRPCError({ code: 'NOT_FOUND', message: 'Food entry not found.' });
+  if (entry.foodLog.userId !== userId) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Not your food entry.' });
+  }
+
+  let newQuantityGrams = entry.quantityGrams;
+  let newCalories = entry.calories;
+  let newProteinG = entry.proteinG;
+  let newCarbsG = entry.carbsG;
+  let newFatG = entry.fatG;
+  let newFiberG = entry.fiberG;
+
+  // Recalculate macros if quantity changed
+  if (input.quantityGrams !== undefined && input.quantityGrams !== entry.quantityGrams) {
+    const ratio = input.quantityGrams / entry.quantityGrams;
+    newQuantityGrams = input.quantityGrams;
+    newCalories = Math.round(entry.calories * ratio);
+    newProteinG = Math.round(entry.proteinG * ratio * 10) / 10;
+    newCarbsG = Math.round(entry.carbsG * ratio * 10) / 10;
+    newFatG = Math.round(entry.fatG * ratio * 10) / 10;
+    newFiberG = Math.round(entry.fiberG * ratio * 10) / 10;
+  }
+
+  const updated = await db.foodLogEntry.update({
+    where: { id: input.entryId },
+    data: {
+      quantityGrams: newQuantityGrams,
+      mealType: input.mealType ?? entry.mealType,
+      calories: newCalories,
+      proteinG: newProteinG,
+      carbsG: newCarbsG,
+      fatG: newFatG,
+      fiberG: newFiberG,
+      editedAt: new Date(),
+    },
+  });
+
+  // Recalculate day totals from scratch
+  const allEntries = await db.foodLogEntry.findMany({ where: { foodLogId: entry.foodLogId } });
+  const totals = allEntries.reduce(
+    (acc, e) => ({
+      totalCalories: acc.totalCalories + e.calories,
+      totalProteinG: acc.totalProteinG + e.proteinG,
+      totalCarbsG: acc.totalCarbsG + e.carbsG,
+      totalFatG: acc.totalFatG + e.fatG,
+      totalFiberG: acc.totalFiberG + e.fiberG,
+    }),
+    { totalCalories: 0, totalProteinG: 0, totalCarbsG: 0, totalFatG: 0, totalFiberG: 0 },
+  );
+  await db.foodLog.update({ where: { id: entry.foodLogId }, data: totals });
+
+  return updated;
+}
+
+/** Delete an entry and recalculate day totals. */
+export async function deleteFoodEntry(
+  userId: string,
+  entryId: string,
+  db: PrismaClient,
+): Promise<{ success: boolean }> {
+  const entry = await db.foodLogEntry.findUnique({
+    where: { id: entryId },
+    include: { foodLog: true },
+  });
+
+  if (!entry) throw new TRPCError({ code: 'NOT_FOUND', message: 'Food entry not found.' });
+  if (entry.foodLog.userId !== userId) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Not your food entry.' });
+  }
+
+  await db.foodLogEntry.delete({ where: { id: entryId } });
+
+  // Recalculate day totals
+  const remaining = await db.foodLogEntry.findMany({ where: { foodLogId: entry.foodLogId } });
+  const totals = remaining.reduce(
+    (acc, e) => ({
+      totalCalories: acc.totalCalories + e.calories,
+      totalProteinG: acc.totalProteinG + e.proteinG,
+      totalCarbsG: acc.totalCarbsG + e.carbsG,
+      totalFatG: acc.totalFatG + e.fatG,
+      totalFiberG: acc.totalFiberG + e.fiberG,
+    }),
+    { totalCalories: 0, totalProteinG: 0, totalCarbsG: 0, totalFatG: 0, totalFiberG: 0 },
+  );
+  await db.foodLog.update({ where: { id: entry.foodLogId }, data: totals });
+
+  return { success: true };
 }
