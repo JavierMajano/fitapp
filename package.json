@@ -16,7 +16,9 @@
     "eas:build:dev": "eas build --profile development --platform all",
     "eas:build:preview": "eas build --profile preview --platform all",
     "eas:build:prod": "eas build --profile production --platform all",
-    "test:e2e": "node -e \"require('fs').mkdirSync('playwright-report/screenshots',{recursive:true})\" && node e2e/fitapp-kg.js && node e2e/fitapp-lbs.js && node e2e/report.js"
+    "test:e2e": "node e2e/run-all.js",
+    "test:e2e:regression": "node -e \"require('fs').mkdirSync('playwright-report/screenshots',{recursive:true})\" && node e2e/fitapp-regression.js",
+    "test:e2e:all": "node -e \"require('fs').mkdirSync('playwright-report/screenshots',{recursive:true})\" && node e2e/fitapp-kg.js && node e2e/fitapp-lbs.js && node e2e/fitapp-regression.js && node e2e/report.js"
   },
   "overrides": {
     "react": "18.2.0",

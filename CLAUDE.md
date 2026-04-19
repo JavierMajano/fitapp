@@ -88,8 +88,9 @@ Copy `.env.railway` to `.env`. Key variable: `EXPO_PUBLIC_API_URL`.
 
 ## Current Phase & Status
 
-**Phases complete:** 1 (scaffold + tooling), 2 (backend + Prisma + tRPC + Railway), 3 (auth + onboarding), 4 (food/workout APIs + exercise seeder), 5 (Sentry + EAS Build + env var docs + toast error feedback). 154 Vitest + 39 Playwright API tests passing.
-**UI layer:** Expo web tabs (food, workout, progress, profile) built with Zustand + mock seed data. kg/lbs unit switching live (`store/units.ts` + profile toggle). Playwright E2E suite: 54/54 (`e2e/fitapp-kg.js` + `e2e/fitapp-lbs.js`, Desktop + iPhone 14). CI playwright job uploads HTML report artifact.
+**Phases complete:** 1 (scaffold + tooling), 2 (backend + Prisma + tRPC + Railway), 3 (auth + onboarding), 4 (food/workout APIs + exercise seeder), 5 (Sentry + EAS Build + env var docs + toast error feedback), 6 (wire all UI tabs to real tRPC backend). 208 Vitest tests passing.
+**UI layer:** All 5 tabs (food, workout, progress, dashboard, profile) wired to real tRPC/DB — no Zustand mock data. kg/lbs unit switching live (`store/units.ts` + profile toggle). Playwright E2E: 184/184 (54 legacy kg/lbs + 130 full regression suite, Desktop + iPhone 14).
+**E2E suite:** `e2e/fitapp-kg.js` + `e2e/fitapp-lbs.js` + `e2e/fitapp-regression.js`. Run with `npm run test:e2e` (legacy) or `node e2e/fitapp-regression.js` (full regression). `e2e/run-all.js` is Windows-compatible runner. CI `playwright-regression` job added (push-only).
 **Error handling:** `store/toast.ts` + `components/ErrorToast.tsx` — global tRPC error → toast pipeline. `SentryFallback` via `app/_layout.tsx` ErrorBoundary. Server Sentry via `server/src/instrument.ts`.
-**Next target:** Phase 6 — wire UI tabs to real tRPC backend (food logging, workout sessions, progress charts, profile from DB).
+**Next target:** Phase 7 — TBD (push notifications, BullMQ weekly TDEE recalc, native mobile build via EAS, or additional features).
 **Full context:** Read `CLAUDE_CONTEXT.md` for DB schema, API specs, phase details, and known issues.

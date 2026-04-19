@@ -94,15 +94,18 @@ function OptionCard({
   selected,
   color,
   onPress,
+  testID,
 }: {
   label: string;
   sublabel?: string;
   selected: boolean;
   color?: string;
   onPress: () => void;
+  testID?: string;
 }) {
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       className={`mb-3 flex-row items-center justify-between rounded-2xl border p-4 ${
         selected ? 'border-brand-400 bg-brand-400/10' : 'border-surface-border bg-surface-card'
@@ -170,6 +173,7 @@ function UnitDropdown({
 
       {/* Trigger */}
       <TouchableOpacity
+        testID="onboard-unit-dropdown"
         onPress={() => setOpen((v) => !v)}
         className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${
           hasError ? 'border-red-500 bg-red-500/5' : 'border-surface-border bg-surface-card'
@@ -188,6 +192,7 @@ function UnitDropdown({
           {UNIT_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.value}
+              testID={opt.value === 'metric' ? 'onboard-unit-metric' : 'onboard-unit-imperial'}
               onPress={() => {
                 onChange(opt.value);
                 setOpen(false);
@@ -347,6 +352,7 @@ export default function OnboardingScreen() {
               <Text className="mb-8 text-sm text-zinc-400">We'll personalise your experience.</Text>
               <Text className="mb-2 text-sm text-zinc-400">Name</Text>
               <TextInput
+                testID="onboard-name-input"
                 className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
                 placeholder="Your name"
                 placeholderTextColor="#52525b"
@@ -376,6 +382,7 @@ export default function OnboardingScreen() {
                     {unitSystem === 'metric' ? 'Weight (kg)' : 'Weight (lbs)'}
                   </Text>
                   <TextInput
+                    testID="onboard-weight-input"
                     className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
                     placeholder={unitSystem === 'metric' ? '70' : '154'}
                     placeholderTextColor="#52525b"
@@ -389,6 +396,7 @@ export default function OnboardingScreen() {
                     {unitSystem === 'metric' ? 'Height (cm)' : 'Height (in)'}
                   </Text>
                   <TextInput
+                    testID="onboard-height-input"
                     className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
                     placeholder={unitSystem === 'metric' ? '175' : '69'}
                     placeholderTextColor="#52525b"
@@ -402,6 +410,7 @@ export default function OnboardingScreen() {
               <View className="mb-4">
                 <Text className="mb-2 text-sm text-zinc-400">Age</Text>
                 <TextInput
+                  testID="onboard-age-input"
                   className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
                   placeholder="25"
                   placeholderTextColor="#52525b"
@@ -416,6 +425,7 @@ export default function OnboardingScreen() {
                 {(['male', 'female'] as Sex[]).map((s) => (
                   <TouchableOpacity
                     key={s}
+                    testID={s === 'male' ? 'onboard-sex-male' : 'onboard-sex-female'}
                     onPress={() => set('sex', s)}
                     className={`flex-1 items-center rounded-xl border py-3.5 ${
                       form.sex === s
@@ -448,6 +458,7 @@ export default function OnboardingScreen() {
                 selected={form.goalMode === 'bulk'}
                 color="#f59e0b"
                 onPress={() => set('goalMode', 'bulk')}
+                testID="onboard-goal-bulk"
               />
               <OptionCard
                 label="Maintenance"
@@ -455,6 +466,7 @@ export default function OnboardingScreen() {
                 selected={form.goalMode === 'maintenance'}
                 color="#3b82f6"
                 onPress={() => set('goalMode', 'maintenance')}
+                testID="onboard-goal-maintenance"
               />
               <OptionCard
                 label="Cut"
@@ -462,6 +474,7 @@ export default function OnboardingScreen() {
                 selected={form.goalMode === 'cut'}
                 color="#ef4444"
                 onPress={() => set('goalMode', 'cut')}
+                testID="onboard-goal-cut"
               />
             </View>
           )}
@@ -485,6 +498,7 @@ export default function OnboardingScreen() {
               ).map(([value, label, sublabel]) => (
                 <OptionCard
                   key={value}
+                  testID={`onboard-activity-${value}`}
                   label={label}
                   sublabel={sublabel}
                   selected={form.activityLevel === value}
@@ -513,7 +527,9 @@ export default function OnboardingScreen() {
                     <Text className="mb-1 text-xs uppercase tracking-wider text-zinc-400">
                       Daily calorie target
                     </Text>
-                    <Text className="text-4xl font-bold text-white">{preview.calories}</Text>
+                    <Text testID="onboard-tdee-value" className="text-4xl font-bold text-white">
+                      {preview.calories}
+                    </Text>
                     <Text className="mt-1 text-xs text-zinc-500">kcal/day</Text>
                     <Text className="mt-2 text-xs text-zinc-600">
                       TDEE {preview.tdee} kcal
@@ -558,6 +574,7 @@ export default function OnboardingScreen() {
 
             {step < TOTAL_STEPS - 1 ? (
               <TouchableOpacity
+                testID="onboard-continue-btn"
                 onPress={next}
                 className="flex-1 items-center rounded-xl bg-brand-400 py-4"
               >
@@ -565,6 +582,7 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
+                testID="onboard-finish-btn"
                 onPress={finish}
                 disabled={completeOnboard.isPending || !preview}
                 className={`flex-1 items-center rounded-xl py-4 ${

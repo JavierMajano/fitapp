@@ -1,14 +1,15 @@
-// Mock DB for development preview — services use in-memory storage instead
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const db = new Proxy({} as any, {
-  get: (_t, prop) =>
-    new Proxy(
-      {},
-      {
-        get: () => () =>
-          Promise.reject(
-            new Error(`Mock DB: ${String(prop)} is not implemented. Use in-memory services.`),
-          ),
-      },
-    ),
-});
+import { PrismaClient } from '@prisma/client';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
+}
+
+// Reuse a single instance across hot-reloads in development
+export const db = globalThis.__prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.__prisma = db;
+}
+
+export type { PrismaClient };
