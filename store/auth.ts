@@ -33,6 +33,8 @@ export interface User {
   proteinTargetG: number | null;
   carbsTargetG: number | null;
   fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: string | null;
 }
 
 interface AuthState {
