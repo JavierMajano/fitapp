@@ -16,11 +16,71 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoalWeightWidget } from '@/components/GoalWeightWidget';
 import { ProgressChartWidget } from '@/components/ProgressChartWidget';
 import { trpc } from '@/lib/trpc';
+import { kgToLbs, toMetricWeight } from '@/lib/units';
 import type { UnitSystem } from '@/lib/units';
-import type { GoalMode } from '@/store/auth';
+import type { GoalMode, User } from '@/store/auth';
 import { useAuthStore } from '@/store/auth';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Extract YYYY-MM-DD from an ISO string (or return '' if null). */
+function isoToDateInput(iso: string | null): string {
+  if (!iso) return '';
+  return iso.slice(0, 10);
+}
+
+/**
+ * Convert a YYYY-MM-DD string → full UTC ISO string for the API.
+ * Returns null if the input is blank.
+ */
+function dateInputToIso(dateStr: string): string | null {
+  if (!dateStr.trim()) return null;
+  // Validate basic YYYY-MM-DD shape before converting
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return null;
+  return `${dateStr.trim()}T00:00:00.000Z`;
+}
+
+/**
+ * Map the tRPC updateProfile response (SafeUser, where goalTargetDate is
+ * typed as Date but arrives as an ISO string over the wire) to the client
+ * User type stored in Zustand.
+ */
+function safeUserToStoreUser(data: {
+  id: string;
+  email: string;
+  name: string;
+  goalMode: string | null;
+  weightKg: number | null;
+  tdeeCalories: number | null;
+  calorieTarget: number | null;
+  proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: string | Date | null;
+}): User {
+  // goalTargetDate arrives as an ISO string over the tRPC wire even though
+  // the server TypeScript type says Date — the typeof guard handles both.
+  return {
+    id: data.id,
+    email: data.email,
+    name: data.name,
+    goalMode: (data.goalMode as GoalMode | null) ?? null,
+    tdeeCalories: data.tdeeCalories,
+    calorieTarget: data.calorieTarget,
+    proteinTargetG: data.proteinTargetG,
+    carbsTargetG: data.carbsTargetG,
+    fatTargetG: data.fatTargetG,
+    goalWeightKg: data.goalWeightKg,
+    goalTargetDate: data.goalTargetDate
+      ? typeof data.goalTargetDate === 'string'
+        ? data.goalTargetDate
+        : data.goalTargetDate.toISOString()
+      : null,
+  };
+}
 
 // ─── Edit profile modal ───────────────────────────────────────────────────────
 
@@ -30,7 +90,14 @@ interface EditProfileModalProps {
   initialName: string;
   initialWeightKg: number | null;
   initialGoalWeightKg: number | null;
-  onSave: (data: { name?: string; weightKg?: number; goalWeightKg?: number }) => void;
+  initialGoalTargetDate: string | null;
+  unitSystem: UnitSystem;
+  onSave: (data: {
+    name?: string;
+    weightKg?: number;
+    goalWeightKg?: number;
+    goalTargetDate?: string | null;
+  }) => void;
   isPending: boolean;
 }
 
@@ -40,22 +107,46 @@ function EditProfileModal({
   initialName,
   initialWeightKg,
   initialGoalWeightKg,
+  initialGoalTargetDate,
+  unitSystem,
   onSave,
   isPending,
 }: EditProfileModalProps) {
   const [name, setName] = useState(initialName);
-  const [weight, setWeight] = useState(initialWeightKg ? String(initialWeightKg) : '');
-  const [goalWeight, setGoalWeight] = useState(
-    initialGoalWeightKg ? String(initialGoalWeightKg) : '',
+  const [weight, setWeight] = useState(
+    initialWeightKg
+      ? unitSystem === 'imperial'
+        ? kgToLbs(String(initialWeightKg))
+        : String(initialWeightKg)
+      : '',
   );
+  const [goalWeight, setGoalWeight] = useState(
+    initialGoalWeightKg
+      ? unitSystem === 'imperial'
+        ? kgToLbs(String(initialGoalWeightKg))
+        : String(initialGoalWeightKg)
+      : '',
+  );
+  // Store as YYYY-MM-DD for the text input; convert to ISO on save
+  const [goalTargetDate, setGoalTargetDate] = useState(isoToDateInput(initialGoalTargetDate));
 
   function handleSave() {
-    const data: { name?: string; weightKg?: number; goalWeightKg?: number } = {};
+    const data: {
+      name?: string;
+      weightKg?: number;
+      goalWeightKg?: number;
+      goalTargetDate?: string | null;
+    } = {};
     if (name.trim() && name.trim() !== initialName) data.name = name.trim();
     const wt = parseFloat(weight);
-    if (!isNaN(wt) && wt > 0) data.weightKg = wt;
+    if (!isNaN(wt) && wt > 0) data.weightKg = toMetricWeight(weight, unitSystem);
     const gw = parseFloat(goalWeight);
-    if (!isNaN(gw) && gw > 0) data.goalWeightKg = gw;
+    if (!isNaN(gw) && gw > 0) data.goalWeightKg = toMetricWeight(goalWeight, unitSystem);
+    // Compare against the initial YYYY-MM-DD display value
+    const initialDisplay = isoToDateInput(initialGoalTargetDate);
+    if (goalTargetDate !== initialDisplay) {
+      data.goalTargetDate = dateInputToIso(goalTargetDate);
+    }
     onSave(data);
   }
 
@@ -92,28 +183,43 @@ function EditProfileModal({
                 autoFocus
               />
 
-              <Text className="mb-2 text-xs text-zinc-400">Current weight (kg)</Text>
+              <Text className="mb-2 text-xs text-zinc-400">
+                Current weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+              </Text>
               <TextInput
                 testID="profile-weight-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
                 className="mb-4 rounded-xl px-4 py-3 text-white"
                 keyboardType="numeric"
-                placeholder="e.g. 75"
+                placeholder={unitSystem === 'imperial' ? 'e.g. 165' : 'e.g. 75'}
                 placeholderTextColor="#52525b"
                 value={weight}
                 onChangeText={setWeight}
               />
 
-              <Text className="mb-2 text-xs text-zinc-400">Goal weight (kg)</Text>
+              <Text className="mb-2 text-xs text-zinc-400">
+                Goal weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+              </Text>
               <TextInput
                 testID="profile-goal-weight-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-5 rounded-xl px-4 py-3 text-white"
+                className="mb-4 rounded-xl px-4 py-3 text-white"
                 keyboardType="numeric"
-                placeholder="e.g. 70"
+                placeholder={unitSystem === 'imperial' ? 'e.g. 155' : 'e.g. 70'}
                 placeholderTextColor="#52525b"
                 value={goalWeight}
                 onChangeText={setGoalWeight}
+              />
+
+              <Text className="mb-2 text-xs text-zinc-400">Target date</Text>
+              <TextInput
+                testID="profile-goal-target-date-input"
+                style={{ backgroundColor: '#222222', color: '#fff' }}
+                className="mb-5 rounded-xl px-4 py-3 text-white"
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#52525b"
+                value={goalTargetDate}
+                onChangeText={setGoalTargetDate}
               />
 
               <TouchableOpacity
@@ -156,6 +262,7 @@ export default function ProfileScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
 
   const { unitSystem, setUnitSystem } = useUnitsStore();
+  const { setUser } = useAuthStore();
   const signOut = useAuthStore((s) => s.signOut);
   const showError = useToastStore((s) => s.showError);
   const utils = trpc.useUtils();
@@ -164,7 +271,8 @@ export default function ProfileScreen() {
   const user = meQuery.data;
 
   const updateProfileMut = trpc.user.updateProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setUser(safeUserToStoreUser(data));
       utils.auth.me.invalidate();
       setEditModalVisible(false);
     },
@@ -259,8 +367,12 @@ export default function ProfileScreen() {
                 },
                 {
                   label: 'Weight',
-                  val: user?.weightKg ? `${user.weightKg}` : '—',
-                  unit: 'kg',
+                  val: user?.weightKg
+                    ? unitSystem === 'imperial'
+                      ? kgToLbs(String(user.weightKg))
+                      : `${user.weightKg}`
+                    : '—',
+                  unit: unitSystem === 'metric' ? 'kg' : 'lbs',
                 },
               ].map((s) => (
                 <View
@@ -356,6 +468,8 @@ export default function ProfileScreen() {
           initialName={user.name}
           initialWeightKg={user.weightKg}
           initialGoalWeightKg={user.goalWeightKg}
+          initialGoalTargetDate={user.goalTargetDate}
+          unitSystem={unitSystem}
           onSave={(data) => updateProfileMut.mutate(data)}
           isPending={updateProfileMut.isPending}
         />

@@ -97,6 +97,9 @@ describe('userService.updateProfile', () => {
         findUnique: vi.fn().mockResolvedValue(BASE_USER),
         update: vi.fn().mockResolvedValue({ ...BASE_USER, weightKg: 85 }),
       },
+      bodyLog: {
+        upsert: vi.fn().mockResolvedValue({}),
+      },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
@@ -111,6 +114,9 @@ describe('userService.updateProfile', () => {
       user: {
         findUnique: vi.fn().mockResolvedValue(BASE_USER),
         update: vi.fn().mockResolvedValue({ ...BASE_USER, goalWeightKg: 75 }),
+      },
+      bodyLog: {
+        upsert: vi.fn().mockResolvedValue({}),
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
