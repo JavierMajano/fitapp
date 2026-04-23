@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
@@ -10,9 +10,13 @@ interface BarcodeScannerProps {
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const scanLineAnim = useState(new Animated.Value(0))[0];
+  const isWeb = Platform.OS === 'web';
 
+  // Scan-line animation — only runs on native (no-op on web)
   useEffect(() => {
+    if (isWeb) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnim, {
@@ -29,7 +33,23 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     );
     loop.start();
     return () => loop.stop();
-  }, [scanLineAnim]);
+  }, [scanLineAnim, isWeb]);
+
+  // Barcode scanning requires a native device — web browsers cannot scan
+  // EAN-13/UPC-A via expo-camera (web only supports QR via a separate code path).
+  if (isWeb) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.messageText}>
+          Barcode scanning is only available on the mobile app.{'\n'}Please use the iOS or Android
+          app to scan barcodes.
+        </Text>
+        <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+          <Text style={styles.cancelText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (!permission) {
     return (
@@ -66,9 +86,13 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       <CameraView
         style={styles.camera}
         facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['ean13', 'upc_a'] }}
+        barcodeScannerSettings={{
+          barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr', 'itf14'],
+        }}
+        onCameraReady={() => setCameraReady(true)}
+        onMountError={(e) => console.warn('[BarcodeScanner] mount error:', e.message)}
         onBarcodeScanned={
-          scanned
+          scanned || !cameraReady
             ? undefined
             : ({ data }) => {
                 setScanned(true);
@@ -89,7 +113,9 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
           </View>
-          <Text style={styles.hint}>Point at a barcode (EAN-13 / UPC-A)</Text>
+          <Text style={styles.hint}>
+            {cameraReady ? 'Point camera at a barcode' : 'Starting camera…'}
+          </Text>
         </View>
       </CameraView>
 
