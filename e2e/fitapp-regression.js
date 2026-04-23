@@ -317,13 +317,13 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     );
   }
 
-  // B4: Step 2 — Maintenance goal selected + Continue advances to step 3
+  // B4: Step 2 — Maintenance goal selected + Continue advances to step 3 (goal weight)
   try {
     await page.locator(td('onboard-goal-maintenance')).click({ timeout: 5000 });
     await page.waitForTimeout(300);
     await page.locator(td('onboard-continue-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(700);
-    await page.waitForSelector(td('onboard-activity-moderate'), { timeout: 8000 });
+    await page.waitForSelector(td('onboard-goal-weight-input'), { timeout: 8000 });
     push('Onboard step 2: Maintenance goal selected + Continue advances to step 3', 'pass', null);
   } catch (e) {
     push(
@@ -333,23 +333,45 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     );
   }
 
-  // B5: Step 3 — Moderately active selected + Continue advances to step 4
+  // B4b: Step 3 — Goal weight filled + preset selected + Continue advances to step 4 (activity)
+  try {
+    await page.locator(td('onboard-goal-weight-input')).fill('72');
+    await page.waitForTimeout(200);
+    await page.locator(td('onboard-preset-normal')).click({ timeout: 5000 });
+    await page.waitForTimeout(300);
+    await page.locator(td('onboard-continue-btn')).click({ timeout: 5000 });
+    await page.waitForTimeout(700);
+    await page.waitForSelector(td('onboard-activity-moderate'), { timeout: 8000 });
+    push(
+      'Onboard step 3: Goal weight filled + normal preset selected + Continue advances to step 4',
+      'pass',
+      null,
+    );
+  } catch (e) {
+    push(
+      'Onboard step 3: Goal weight filled + normal preset selected + Continue advances to step 4',
+      'fail',
+      await shot(page, prefix + '-B4b-fail'),
+    );
+  }
+
+  // B5: Step 4 — Moderately active selected + Continue advances to step 5 (TDEE)
   try {
     await page.locator(td('onboard-activity-moderate')).click({ timeout: 5000 });
     await page.waitForTimeout(300);
     await page.locator(td('onboard-continue-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(700);
     await page.waitForSelector(td('onboard-tdee-value'), { timeout: 8000 });
-    push('Onboard step 3: Moderately active selected + Continue advances to step 4', 'pass', null);
+    push('Onboard step 4: Moderately active selected + Continue advances to step 5', 'pass', null);
   } catch (e) {
     push(
-      'Onboard step 3: Moderately active selected + Continue advances to step 4',
+      'Onboard step 4: Moderately active selected + Continue advances to step 5',
       'fail',
       await shot(page, prefix + '-B5-fail'),
     );
   }
 
-  // B6: Step 4 — TDEE value shown in valid range
+  // B6: Step 5 — TDEE value shown in valid range
   try {
     var tdeeText = await page.locator(td('onboard-tdee-value')).textContent({ timeout: 5000 });
     var tdeeNum = parseInt((tdeeText || '').trim(), 10);
@@ -357,12 +379,12 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
       throw new Error('TDEE out of expected range (1000–6000): "' + tdeeText + '"');
     }
     push(
-      'Onboard step 4: TDEE value shown (' + tdeeNum + ' kcal)',
+      'Onboard step 5: TDEE value shown (' + tdeeNum + ' kcal)',
       'pass',
       await shot(page, prefix + '-B6-tdee'),
     );
   } catch (e) {
-    push('Onboard step 4: TDEE value shown', 'fail', await shot(page, prefix + '-B6-fail'));
+    push('Onboard step 5: TDEE value shown', 'fail', await shot(page, prefix + '-B6-fail'));
   }
 
   await ctx.close();
@@ -999,15 +1021,14 @@ async function suiteG(page, prefix, results, creds) {
 
   // G5: Goal weight card is visible with a kg value
   // Note: both devices share the same test user. Desktop G8 changes goalWeight to 72 kg
-  // before mobile reaches this step, so we check for the card's presence + any numeric kg value.
+  // before mobile reaches this step, so we check the full widget text content for "kg".
   try {
-    await page.waitForSelector('text=Goal weight', { timeout: 10000 });
+    await page.waitForSelector(td('goal-weight-widget'), { timeout: 10000 });
     var goalWeightText = await page
-      .locator('text=Goal weight')
-      .locator('..')
+      .locator(td('goal-weight-widget'))
       .textContent({ timeout: 5000 });
     var hasKg = (goalWeightText || '').includes('kg');
-    if (!hasKg) throw new Error('Goal weight card does not contain "kg": ' + goalWeightText);
+    if (!hasKg) throw new Error('Goal weight widget does not contain "kg": ' + goalWeightText);
     push('Profile: goal weight card visible with kg value', 'pass', null);
   } catch (e) {
     push(
