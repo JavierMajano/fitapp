@@ -17,10 +17,69 @@ import { GoalWeightWidget } from '@/components/GoalWeightWidget';
 import { ProgressChartWidget } from '@/components/ProgressChartWidget';
 import { trpc } from '@/lib/trpc';
 import type { UnitSystem } from '@/lib/units';
-import type { GoalMode } from '@/store/auth';
+import type { GoalMode, User } from '@/store/auth';
 import { useAuthStore } from '@/store/auth';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Extract YYYY-MM-DD from an ISO string (or return '' if null). */
+function isoToDateInput(iso: string | null): string {
+  if (!iso) return '';
+  return iso.slice(0, 10);
+}
+
+/**
+ * Convert a YYYY-MM-DD string → full UTC ISO string for the API.
+ * Returns null if the input is blank.
+ */
+function dateInputToIso(dateStr: string): string | null {
+  if (!dateStr.trim()) return null;
+  // Validate basic YYYY-MM-DD shape before converting
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return null;
+  return `${dateStr.trim()}T00:00:00.000Z`;
+}
+
+/**
+ * Map the tRPC updateProfile response (SafeUser, where goalTargetDate is
+ * typed as Date but arrives as an ISO string over the wire) to the client
+ * User type stored in Zustand.
+ */
+function safeUserToStoreUser(data: {
+  id: string;
+  email: string;
+  name: string;
+  goalMode: string | null;
+  weightKg: number | null;
+  tdeeCalories: number | null;
+  calorieTarget: number | null;
+  proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: string | Date | null;
+}): User {
+  // goalTargetDate arrives as an ISO string over the tRPC wire even though
+  // the server TypeScript type says Date — the typeof guard handles both.
+  return {
+    id: data.id,
+    email: data.email,
+    name: data.name,
+    goalMode: (data.goalMode as GoalMode | null) ?? null,
+    tdeeCalories: data.tdeeCalories,
+    calorieTarget: data.calorieTarget,
+    proteinTargetG: data.proteinTargetG,
+    carbsTargetG: data.carbsTargetG,
+    fatTargetG: data.fatTargetG,
+    goalWeightKg: data.goalWeightKg,
+    goalTargetDate: data.goalTargetDate
+      ? typeof data.goalTargetDate === 'string'
+        ? data.goalTargetDate
+        : data.goalTargetDate.toISOString()
+      : null,
+  };
+}
 
 // ─── Edit profile modal ───────────────────────────────────────────────────────
 
@@ -55,7 +114,8 @@ function EditProfileModal({
   const [goalWeight, setGoalWeight] = useState(
     initialGoalWeightKg ? String(initialGoalWeightKg) : '',
   );
-  const [goalTargetDate, setGoalTargetDate] = useState(initialGoalTargetDate ?? '');
+  // Store as YYYY-MM-DD for the text input; convert to ISO on save
+  const [goalTargetDate, setGoalTargetDate] = useState(isoToDateInput(initialGoalTargetDate));
 
   function handleSave() {
     const data: {
@@ -69,8 +129,10 @@ function EditProfileModal({
     if (!isNaN(wt) && wt > 0) data.weightKg = wt;
     const gw = parseFloat(goalWeight);
     if (!isNaN(gw) && gw > 0) data.goalWeightKg = gw;
-    if (goalTargetDate !== initialGoalTargetDate) {
-      data.goalTargetDate = goalTargetDate || null;
+    // Compare against the initial YYYY-MM-DD display value
+    const initialDisplay = isoToDateInput(initialGoalTargetDate);
+    if (goalTargetDate !== initialDisplay) {
+      data.goalTargetDate = dateInputToIso(goalTargetDate);
     }
     onSave(data);
   }
@@ -132,12 +194,12 @@ function EditProfileModal({
                 onChangeText={setGoalWeight}
               />
 
-              <Text className="mb-2 text-xs text-zinc-400">Target date (ISO 8601)</Text>
+              <Text className="mb-2 text-xs text-zinc-400">Target date</Text>
               <TextInput
                 testID="profile-goal-target-date-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
                 className="mb-5 rounded-xl px-4 py-3 text-white"
-                placeholder="e.g. 2024-12-31T23:59:59Z"
+                placeholder="YYYY-MM-DD"
                 placeholderTextColor="#52525b"
                 value={goalTargetDate}
                 onChangeText={setGoalTargetDate}
@@ -193,7 +255,7 @@ export default function ProfileScreen() {
 
   const updateProfileMut = trpc.user.updateProfile.useMutation({
     onSuccess: (data) => {
-      setUser(data as any);
+      setUser(safeUserToStoreUser(data));
       utils.auth.me.invalidate();
       setEditModalVisible(false);
     },
