@@ -1,7 +1,8 @@
 /**
  * FitApp E2E — HTML Report Generator
- * Reads results-kg.json and results-lbs.json, generates playwright-report/index.html
- * with embedded screenshots and pass/fail status for each test.
+ * Reads results-kg.json, results-lbs.json, and results-regression.json,
+ * then generates playwright-report/index.html with embedded screenshots
+ * and pass/fail/skip status for each test.
  *
  * Run: node e2e/report.js  (from project root)
  */
@@ -14,9 +15,10 @@ const path = require('path');
 const REPORT_DIR = path.resolve(__dirname, '../playwright-report');
 const KG_FILE = path.join(REPORT_DIR, 'results-kg.json');
 const LBS_FILE = path.join(REPORT_DIR, 'results-lbs.json');
+const REG_FILE = path.join(REPORT_DIR, 'results-regression.json');
 const OUT_FILE = path.join(REPORT_DIR, 'index.html');
 
-// Allow partial reports (only kg or only lbs may exist yet)
+// Allow partial reports (any file may not exist yet)
 function safeRead(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -28,38 +30,49 @@ function safeRead(file) {
 
 const resultsKg = safeRead(KG_FILE);
 const resultsLbs = safeRead(LBS_FILE);
-const all = [...resultsKg, ...resultsLbs];
+const resultsReg = safeRead(REG_FILE);
+const all = [...resultsKg, ...resultsLbs, ...resultsReg];
 
 if (all.length === 0) {
-  console.error('No results found. Run fitapp-kg.js and/or fitapp-lbs.js first.');
+  console.error('No results found. Run fitapp-kg.js, fitapp-lbs.js, and/or fitapp-regression.js first.');
   process.exit(1);
 }
 
 const passed = all.filter((r) => r.status === 'pass').length;
-const failed = all.length - passed;
+const skipped = all.filter((r) => r.status === 'skip').length;
+const failed = all.filter((r) => r.status === 'fail').length;
 
 function badge(status) {
-  return status === 'pass'
-    ? '<span style="color:#1a9e6e;font-size:18px">✅</span>'
-    : '<span style="color:#f87171;font-size:18px">❌</span>';
+  if (status === 'pass') return '<span style="color:#1a9e6e;font-size:18px">✅</span>';
+  if (status === 'skip') return '<span style="color:#a1a1aa;font-size:18px">⏭️</span>';
+  return '<span style="color:#f87171;font-size:18px">❌</span>';
 }
 
 function row(r) {
   const screenshotTag = r.screenshot
     ? `<img src="${r.screenshot}" alt="${r.name}" style="max-width:220px;border-radius:8px;border:1px solid #2e2e2e">`
-    : '<span style="color:#52525b;font-size:12px">No screenshot</span>';
+    : '<span style="color:#52525b;font-size:12px">—</span>';
 
-  const rowBg = r.status === 'pass' ? 'transparent' : 'rgba(248,113,113,0.05)';
+  const rowBg =
+    r.status === 'pass'
+      ? 'transparent'
+      : r.status === 'skip'
+        ? 'rgba(161,161,170,0.03)'
+        : 'rgba(248,113,113,0.05)';
+  const nameColor =
+    r.status === 'pass' ? '#d4d4d8' : r.status === 'skip' ? '#71717a' : '#f87171';
 
   return `
     <tr style="border-bottom:1px solid #2e2e2e;background:${rowBg}">
       <td style="padding:12px 8px;text-align:center;white-space:nowrap">${badge(r.status)}</td>
-      <td style="padding:12px 8px;font-family:monospace;font-size:13px;color:${r.status === 'pass' ? '#d4d4d8' : '#f87171'}">${r.name}</td>
+      <td style="padding:12px 8px;font-family:monospace;font-size:13px;color:${nameColor}">${r.name}</td>
       <td style="padding:8px;text-align:center">${screenshotTag}</td>
     </tr>`;
 }
 
-// Group by prefix ([kg-desktop], [kg-mobile], [lbs-desktop], [lbs-mobile])
+// Group results: first prefix segment = suite key
+// kg/lbs results: [kg-desktop], [kg-mobile], [lbs-desktop], [lbs-mobile]
+// regression:     [reg-desktop][A], [reg-mobile][A] etc. → group by [reg-desktop] / [reg-mobile]
 const groups = {};
 for (const r of all) {
   const match = r.name.match(/^\[([^\]]+)\]/);
@@ -68,16 +81,30 @@ for (const r of all) {
 }
 
 function section(key, rows) {
-  const emoji = key.includes('lbs') ? '🏋️' : '⚖️';
-  const device = key.includes('mobile') ? '📱 iPhone 14' : '🖥️ Desktop';
-  const unit = key.includes('lbs') ? 'Imperial (lbs)' : 'Metric (kg)';
+  const isReg = key.startsWith('reg-');
+  const isLbs = key.includes('lbs');
+  const isMobile = key.includes('mobile');
+
+  let emoji, label;
+  if (isReg) {
+    emoji = '🔬';
+    label = 'Regression — ' + (isMobile ? '📱 iPhone 14' : '🖥️ Desktop');
+  } else {
+    emoji = isLbs ? '🏋️' : '⚖️';
+    label = (isLbs ? 'Imperial (lbs)' : 'Metric (kg)') + ' — ' + (isMobile ? '📱 iPhone 14' : '🖥️ Desktop');
+  }
+
   const sectionPassed = rows.filter((r) => r.status === 'pass').length;
+  const sectionSkipped = rows.filter((r) => r.status === 'skip').length;
+  const sectionFailed = rows.filter((r) => r.status === 'fail').length;
 
   return `
   <section style="margin-bottom:40px">
     <h2 style="color:#d4d4d8;font-size:16px;margin-bottom:12px">
-      ${emoji} ${unit} — ${device}
-      <span style="font-size:13px;color:#71717a;margin-left:12px">${sectionPassed}/${rows.length} passed</span>
+      ${emoji} ${label}
+      <span style="font-size:13px;color:#1a9e6e;margin-left:12px">${sectionPassed} passed</span>
+      ${sectionSkipped > 0 ? `<span style="font-size:13px;color:#a1a1aa;margin-left:8px">${sectionSkipped} skipped</span>` : ''}
+      ${sectionFailed > 0 ? `<span style="font-size:13px;color:#f87171;margin-left:8px">${sectionFailed} failed</span>` : ''}
     </h2>
     <table style="width:100%;border-collapse:collapse">
       <thead>
@@ -137,7 +164,7 @@ const html = `<!DOCTYPE html>
   <p class="meta">Generated ${new Date().toUTCString()}</p>
 
   <div class="summary">
-    ${summaryIcon} ${passed} passed &nbsp;·&nbsp; ${failed} failed &nbsp;·&nbsp; ${all.length} total
+    ${summaryIcon} ${passed} passed &nbsp;·&nbsp; ${skipped} skipped &nbsp;·&nbsp; ${failed} failed &nbsp;·&nbsp; ${all.length} total
   </div>
 
   ${sectionHtml}

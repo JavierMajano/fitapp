@@ -1,8 +1,11 @@
 import { TRPCError } from '@trpc/server';
 
-import type { OnboardingInput } from '../schemas';
-import { users } from './auth.service';
+import type { PrismaClient } from '../db';
+import type { OnboardingInput, UpdateProfileInput, UpdateSettingsInput } from '../schemas';
 import type { SafeUser } from './auth.service';
+import * as bodyService from './body.service';
+
+// ─── TDEE helpers ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_MULTIPLIERS: Record<OnboardingInput['activityLevel'], number> = {
   sedentary: 1.2,
@@ -18,7 +21,14 @@ const GOAL_ADJUSTMENTS: Record<OnboardingInput['goalMode'], number> = {
   cut: -400,
 };
 
-function calcTargets(input: OnboardingInput) {
+function calcTargets(input: {
+  weightKg: number;
+  heightCm: number;
+  age: number;
+  sex: 'male' | 'female';
+  activityLevel: OnboardingInput['activityLevel'];
+  goalMode: OnboardingInput['goalMode'];
+}) {
   const { weightKg, heightCm, age, sex, activityLevel, goalMode } = input;
 
   const bmr =
@@ -36,33 +46,154 @@ function calcTargets(input: OnboardingInput) {
   return { tdeeCalories, calorieTarget, proteinTargetG, carbsTargetG, fatTargetG };
 }
 
+function toSafe(user: {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  goalMode: string | null;
+  weightKg: number | null;
+  tdeeCalories: number | null;
+  calorieTarget: number | null;
+  proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
+  goalWeightKg: number | null;
+  goalTargetDate: Date | null;
+}): SafeUser {
+  return { ...user, isOnboarded: user.goalMode !== null };
+}
+
+// ─── Service functions ────────────────────────────────────────────────────────
+
 export async function completeOnboard(
   userId: string,
   input: OnboardingInput,
-  _db: unknown,
+  db: PrismaClient,
 ): Promise<SafeUser> {
-  const user = users.get(userId);
-  if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
-
   const targets = calcTargets(input);
 
-  Object.assign(user, {
-    goalMode: input.goalMode,
-    isOnboarded: true,
-    ...targets,
-  });
+  const [user] = await Promise.all([
+    db.user.update({
+      where: { id: userId },
+      data: {
+        goalMode: input.goalMode,
+        weightKg: input.weightKg,
+        heightCm: input.heightCm,
+        age: input.age,
+        sex: input.sex,
+        activityLevel: input.activityLevel,
+        goalWeightKg: input.goalWeightKg ?? null,
+        goalTargetDate: input.goalTargetDate ? new Date(input.goalTargetDate) : null,
+        ...targets,
+      },
+    }),
+    db.goalHistory.create({
+      data: {
+        userId,
+        goalMode: input.goalMode,
+        calorieTarget: targets.calorieTarget,
+        proteinTargetG: targets.proteinTargetG,
+        carbsTargetG: targets.carbsTargetG,
+        fatTargetG: targets.fatTargetG,
+        startedAt: new Date(),
+      },
+    }),
+  ]);
 
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    avatarUrl: user.avatarUrl,
-    goalMode: user.goalMode,
-    tdeeCalories: user.tdeeCalories,
-    calorieTarget: user.calorieTarget,
-    proteinTargetG: user.proteinTargetG,
-    carbsTargetG: user.carbsTargetG,
-    fatTargetG: user.fatTargetG,
-    isOnboarded: true,
-  };
+  return toSafe(user);
+}
+
+export async function updateProfile(
+  userId: string,
+  input: UpdateProfileInput,
+  db: PrismaClient,
+): Promise<SafeUser> {
+  // Fetch current user to fill any missing fields for TDEE recalc
+  const current = await db.user.findUnique({ where: { id: userId } });
+  if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
+
+  const updateData: Record<string, unknown> = {};
+  if (input.name !== undefined) updateData.name = input.name;
+  if (input.weightKg !== undefined) updateData.weightKg = input.weightKg;
+  if (input.heightCm !== undefined) updateData.heightCm = input.heightCm;
+  if (input.age !== undefined) updateData.age = input.age;
+  if (input.sex !== undefined) updateData.sex = input.sex;
+  if (input.activityLevel !== undefined) updateData.activityLevel = input.activityLevel;
+  if (input.goalMode !== undefined) updateData.goalMode = input.goalMode;
+  if ('goalWeightKg' in input) updateData.goalWeightKg = input.goalWeightKg;
+  if ('goalTargetDate' in input) {
+    updateData.goalTargetDate =
+      input.goalTargetDate != null ? new Date(input.goalTargetDate) : null;
+  }
+
+  // Recalculate TDEE if any body metrics or goal mode changed
+  const shouldRecalc =
+    (input.weightKg !== undefined ||
+      input.heightCm !== undefined ||
+      input.age !== undefined ||
+      input.sex !== undefined ||
+      input.activityLevel !== undefined ||
+      input.goalMode !== undefined) &&
+    // All required fields must be present (either from input or current user)
+    (input.weightKg ?? current.weightKg) !== null &&
+    (input.heightCm ?? current.heightCm) !== null &&
+    (input.age ?? current.age) !== null &&
+    (input.sex ?? current.sex) !== null &&
+    (input.activityLevel ?? current.activityLevel) !== null &&
+    (input.goalMode ?? current.goalMode) !== null;
+
+  if (shouldRecalc) {
+    const targets = calcTargets({
+      weightKg: (input.weightKg ?? current.weightKg) as number,
+      heightCm: (input.heightCm ?? current.heightCm) as number,
+      age: (input.age ?? current.age) as number,
+      sex: (input.sex ?? current.sex) as 'male' | 'female',
+      activityLevel: (input.activityLevel ??
+        current.activityLevel) as OnboardingInput['activityLevel'],
+      goalMode: (input.goalMode ?? current.goalMode) as OnboardingInput['goalMode'],
+    });
+    Object.assign(updateData, targets);
+  }
+
+  const user = await db.user.update({ where: { id: userId }, data: updateData });
+
+  // Log weight change if weightKg was updated
+  if (input.weightKg !== undefined && input.weightKg !== current.weightKg) {
+    const today = new Date().toISOString().split('T')[0];
+    await bodyService.logWeight(userId, { weightKg: input.weightKg, date: today }, db);
+  }
+
+  return toSafe(user);
+}
+
+export type UserSettings = {
+  id: string;
+  userId: string;
+  unitSystem: string;
+  theme: string;
+  weeklyWeighInDay: number;
+  defaultRestSeconds: number;
+  notificationReminders: number;
+  timezone: string;
+};
+
+export async function getSettings(userId: string, db: PrismaClient): Promise<UserSettings> {
+  const existing = await db.userSettings.findUnique({ where: { userId } });
+  if (existing) return existing;
+
+  // Create default settings on first access
+  return db.userSettings.create({ data: { userId } });
+}
+
+export async function updateSettings(
+  userId: string,
+  input: UpdateSettingsInput,
+  db: PrismaClient,
+): Promise<UserSettings> {
+  return db.userSettings.upsert({
+    where: { userId },
+    update: input,
+    create: { userId, ...input },
+  });
 }

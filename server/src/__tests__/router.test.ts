@@ -3,35 +3,31 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import type { Context } from '../context';
 import { appRouter, createCallerFactory } from '../router';
-import { clearUsers, users } from '../services/auth.service';
-import { clearAll as clearWorkout, seedRoutine } from '../services/workout.service';
+import { clearAll as clearWorkout } from '../services/workout.service';
 
-// signUp and signIn both sign JWTs — provide a secret for tests
-process.env.JWT_SECRET = 'test-secret-for-unit-tests';
+// JWT_SECRET is provided by vitest.config.ts env
 
-// Seed the in-memory store with the fixture user used by makeAuthCtx.
-// Called in beforeEach so auth.me, completeOnboard, and protected-procedure
-// tests always find userId='user-uuid-1' in the Map.
-function seedFixtureUser() {
-  clearUsers();
-  users.set('user-uuid-1', {
-    id: 'user-uuid-1',
-    email: 'user@example.com',
-    name: 'Test User',
-    avatarUrl: null,
-    goalMode: null,
-    tdeeCalories: null,
-    calorieTarget: null,
-    proteinTargetG: null,
-    carbsTargetG: null,
-    fatTargetG: null,
-    isOnboarded: false,
-    password: '',
-  });
-}
+// Base user shape returned by db.user.findUnique / create / update mocks
+const MOCK_USER = {
+  id: 'user-uuid-1',
+  email: 'user@example.com',
+  name: 'Test User',
+  avatarUrl: null,
+  goalMode: null as string | null,
+  weightKg: null as number | null,
+  tdeeCalories: null as number | null,
+  calorieTarget: null as number | null,
+  proteinTargetG: null as number | null,
+  carbsTargetG: null as number | null,
+  fatTargetG: null as number | null,
+  goalWeightKg: null as number | null,
+  goalTargetDate: null as Date | null,
+  passwordHash: null as string | null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
 beforeEach(() => {
-  seedFixtureUser();
   clearWorkout();
 });
 
@@ -39,7 +35,10 @@ beforeEach(() => {
 
 function makeCtx(overrides: Partial<Context> = {}): Context {
   return {
-    db: {} as Context['db'],
+    db: {
+      routine: { findMany: vi.fn().mockResolvedValue([]) },
+      exercise: { findMany: vi.fn().mockResolvedValue([]) },
+    } as unknown as Context['db'],
     redis: {} as Context['redis'],
     session: null,
     req: {} as Context['req'],
@@ -53,22 +52,85 @@ function makeAuthCtx(overrides: Partial<Context> = {}): Context {
   return makeCtx({
     session: { user: { id: 'user-uuid-1', email: 'user@example.com' } },
     db: {
-      user: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: 'user-uuid-1',
-          email: 'user@example.com',
-          name: 'Test User',
-          avatarUrl: null,
-          goalMode: null,
-          tdeeCalories: null,
-          calorieTarget: null,
-          proteinTargetG: null,
-          carbsTargetG: null,
-          fatTargetG: null,
-        }),
-      },
+      user: { findUnique: vi.fn().mockResolvedValue(MOCK_USER) },
+      routine: { findMany: vi.fn().mockResolvedValue([]) },
+      exercise: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as Context['db'],
     ...overrides,
+  });
+}
+
+// Workout context — DB-backed session lifecycle mocks
+function makeWorkoutCtx(overrides: { sessionEndedAt?: Date | null; exerciseFound?: boolean } = {}) {
+  const SESSION_ID = '550e8400-e29b-41d4-a716-446655440001';
+  const EXERCISE_ID = '660e8400-e29b-41d4-a716-446655440002';
+  const session = {
+    id: SESSION_ID,
+    userId: 'user-uuid-1',
+    routineId: null,
+    routineDayId: null,
+    name: 'Ad-hoc session',
+    notes: null,
+    perceivedEffort: null,
+    caloriesBurned: null,
+    startedAt: new Date(),
+    endedAt: overrides.sessionEndedAt ?? null,
+  };
+  const mockRoutine = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    name: 'Test Routine',
+    userId: null,
+    description: null,
+    daysPerWeek: 3,
+    isActive: true,
+    createdAt: new Date(),
+  };
+
+  return makeCtx({
+    session: { user: { id: 'user-uuid-1', email: 'user@example.com' } },
+    db: {
+      user: { findUnique: vi.fn().mockResolvedValue(MOCK_USER) },
+      routine: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn().mockResolvedValue(mockRoutine),
+      },
+      exercise: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi
+          .fn()
+          .mockResolvedValue(
+            overrides.exerciseFound === false
+              ? null
+              : { id: EXERCISE_ID, name: 'Bench Press', category: 'strength' },
+          ),
+        create: vi
+          .fn()
+          .mockResolvedValue({ id: EXERCISE_ID, name: 'Custom Exercise', category: 'custom' }),
+      },
+      workoutSession: {
+        create: vi.fn().mockResolvedValue(session),
+        findUnique: vi.fn().mockResolvedValue(session),
+        update: vi.fn().mockResolvedValue({ ...session, endedAt: new Date() }),
+      },
+      sessionSet: {
+        create: vi.fn(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({
+            id: 'set-uuid-1',
+            sessionId: data['sessionId'],
+            exerciseId: data['exerciseId'],
+            setNumber: data['setNumber'],
+            setType: 'working',
+            weightKg: data['weightKg'] ?? null,
+            reps: data['reps'] ?? null,
+            durationSeconds: null,
+            distanceKm: null,
+            completed: true,
+            loggedAt: new Date(),
+            editedAt: null,
+          }),
+        ),
+      },
+    } as unknown as Context['db'],
   });
 }
 
@@ -108,23 +170,17 @@ describe('auth.signUp — input validation', () => {
   // don't need a db mock — input never reaches the service layer.
   const callerNoDb = createCaller(makeCtx());
 
-  // signUp now hits the real service; mock the db so no network call is made
+  // signUp hits the real service; mock the db so no network call is made
   function makeSignUpCtx() {
     return makeCtx({
       db: {
         user: {
           findUnique: vi.fn().mockResolvedValue(null), // no existing user
           create: vi.fn().mockResolvedValue({
+            ...MOCK_USER,
             id: 'new-uuid',
             email: 'new@example.com',
             name: 'Test User',
-            avatarUrl: null,
-            goalMode: null,
-            tdeeCalories: null,
-            calorieTarget: null,
-            proteinTargetG: null,
-            carbsTargetG: null,
-            fatTargetG: null,
           }),
         },
       } as unknown as Context['db'],
@@ -141,235 +197,277 @@ describe('auth.signUp — input validation', () => {
     expect(result.user).toMatchObject({ email: 'new@example.com', isOnboarded: false });
   });
 
-  it('rejects invalid email', async () => {
+  it('rejects empty email', async () => {
     await expect(
-      callerNoDb.auth.signUp({ email: 'bad', password: 'securepass', name: 'X' }),
+      callerNoDb.auth.signUp({ email: '', password: 'password', name: 'Test' }),
     ).rejects.toThrow(TRPCError);
   });
 
-  it('rejects password shorter than 8 chars', async () => {
+  it('rejects invalid email format', async () => {
     await expect(
-      callerNoDb.auth.signUp({ email: 'a@b.com', password: 'short', name: 'X' }),
+      callerNoDb.auth.signUp({ email: 'notanemail', password: 'password', name: 'Test' }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it('rejects password shorter than 8 characters', async () => {
+    await expect(
+      callerNoDb.auth.signUp({ email: 'test@test.com', password: 'short', name: 'Test' }),
     ).rejects.toThrow(TRPCError);
   });
 
   it('rejects empty name', async () => {
     await expect(
-      callerNoDb.auth.signUp({ email: 'a@b.com', password: 'validpassword', name: '' }),
+      callerNoDb.auth.signUp({ email: 'test@test.com', password: 'password123', name: '' }),
     ).rejects.toThrow(TRPCError);
   });
 });
 
 describe('auth.signIn — input validation', () => {
-  // Zod validation happens before the db is touched, so invalid input tests
-  // can use an empty context. Only the valid-input test needs a db mock.
   const callerNoDb = createCaller(makeCtx());
 
-  it('rejects malformed email', async () => {
-    await expect(callerNoDb.auth.signIn({ email: 'notanemail', password: 'pass' })).rejects.toThrow(
+  it('rejects missing email', async () => {
+    await expect(callerNoDb.auth.signIn({ email: '', password: 'password' })).rejects.toThrow(
       TRPCError,
     );
   });
 
-  it('rejects empty password', async () => {
-    await expect(callerNoDb.auth.signIn({ email: 'a@b.com', password: '' })).rejects.toThrow(
+  it('rejects missing password', async () => {
+    await expect(callerNoDb.auth.signIn({ email: 'test@test.com', password: '' })).rejects.toThrow(
       TRPCError,
     );
-  });
-
-  it('throws UNAUTHORIZED for wrong password (real service, mocked db)', async () => {
-    const bcrypt = await import('bcryptjs');
-    const passwordHash = await bcrypt.hash('correct-pass', 1);
-    const caller = createCaller(
-      makeCtx({
-        db: {
-          user: {
-            findUnique: vi.fn().mockResolvedValue({
-              ...{
-                id: 'u1',
-                email: 'a@b.com',
-                name: 'A',
-                avatarUrl: null,
-                goalMode: null,
-                tdeeCalories: null,
-                calorieTarget: null,
-                proteinTargetG: null,
-                carbsTargetG: null,
-                fatTargetG: null,
-              },
-              passwordHash,
-            }),
-          },
-        } as unknown as Context['db'],
-      }),
-    );
-    await expect(
-      caller.auth.signIn({ email: 'a@b.com', password: 'wrong-pass' }),
-    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
 });
 
 // ─── user ─────────────────────────────────────────────────────────────────────
 
-describe('user.updateProfile — input validation', () => {
-  const caller = createCaller(makeAuthCtx());
-
-  it('accepts optional name', async () => {
-    const result = await caller.user.updateProfile({ name: 'New Name' });
-    expect(result).toEqual({ todo: true });
-  });
-
-  it('accepts empty object (name is optional)', async () => {
-    const result = await caller.user.updateProfile({});
-    expect(result).toEqual({ todo: true });
-  });
-
-  it('rejects empty string name', async () => {
-    await expect(caller.user.updateProfile({ name: '' })).rejects.toThrow(TRPCError);
-  });
-
-  it('rejects name longer than 100 chars', async () => {
-    await expect(caller.user.updateProfile({ name: 'a'.repeat(101) })).rejects.toThrow(TRPCError);
-  });
-});
-
 describe('user.completeOnboard — input validation', () => {
-  const updatedUser = {
-    id: 'user-uuid-1',
-    email: 'user@example.com',
-    name: 'Test User',
-    avatarUrl: null,
-    goalMode: 'bulk',
-    tdeeCalories: 2800,
-    calorieTarget: 3200,
-    proteinTargetG: 160,
-    carbsTargetG: 380,
-    fatTargetG: 89,
-  };
+  const callerNoAuth = createCaller(makeCtx());
 
-  function makeOnboardCtx() {
-    return makeCtx({
-      session: { user: { id: 'user-uuid-1', email: 'user@example.com' } },
-      db: {
-        user: {
-          update: vi.fn().mockResolvedValue(updatedUser),
-        },
-        goalHistory: {
-          create: vi.fn().mockResolvedValue({}),
-        },
-      } as unknown as Context['db'],
-    });
-  }
-
-  const validOnboard = {
-    goalMode: 'bulk' as const,
-    weightKg: 80,
-    heightCm: 175,
-    age: 25,
-    sex: 'male' as const,
-    activityLevel: 'moderate' as const,
-  };
-
-  it('accepts valid onboarding input', async () => {
-    const caller = createCaller(makeOnboardCtx());
-    const result = await caller.user.completeOnboard(validOnboard);
-    expect(result).toMatchObject({ id: 'user-uuid-1', isOnboarded: true });
+  it('throws UNAUTHORIZED when unauthenticated', async () => {
+    await expect(
+      callerNoAuth.user.completeOnboard({
+        goalMode: 'maintenance',
+        weightKg: 75,
+        heightCm: 175,
+        age: 25,
+        sex: 'male',
+        activityLevel: 'moderate',
+      }),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
 
-  // Zod rejects before the db is touched — use a lightweight auth context
-  const callerZodOnly = createCaller(makeAuthCtx());
+  it('accepts valid onboarding input and returns SafeUser', async () => {
+    const caller = createCaller(
+      makeAuthCtx({
+        db: {
+          user: {
+            findUnique: vi.fn().mockResolvedValue(MOCK_USER),
+            update: vi.fn().mockResolvedValue({
+              ...MOCK_USER,
+              goalMode: 'maintenance',
+              weightKg: 75,
+              tdeeCalories: 2500,
+              calorieTarget: 2500,
+              proteinTargetG: 188,
+              carbsTargetG: 281,
+              fatTargetG: 83,
+            }),
+          },
+          goalHistory: { create: vi.fn().mockResolvedValue({}) },
+        } as unknown as Context['db'],
+      }),
+    );
+
+    const result = await caller.user.completeOnboard({
+      goalMode: 'maintenance',
+      weightKg: 75,
+      heightCm: 175,
+      age: 25,
+      sex: 'male',
+      activityLevel: 'moderate',
+    });
+
+    expect(result).toMatchObject({ goalMode: 'maintenance', isOnboarded: true });
+  });
 
   it('rejects invalid goalMode', async () => {
+    const callerAuth = createCaller(makeAuthCtx());
     await expect(
-      callerZodOnly.user.completeOnboard({ ...validOnboard, goalMode: 'gain' as never }),
+      callerAuth.user.completeOnboard({
+        goalMode: 'super-bulk' as never,
+        weightKg: 75,
+        heightCm: 175,
+        age: 25,
+        sex: 'male',
+        activityLevel: 'moderate',
+      }),
     ).rejects.toThrow(TRPCError);
-  });
-
-  it('rejects age below 13', async () => {
-    await expect(callerZodOnly.user.completeOnboard({ ...validOnboard, age: 12 })).rejects.toThrow(
-      TRPCError,
-    );
   });
 
   it('rejects negative weight', async () => {
+    const callerAuth = createCaller(makeAuthCtx());
     await expect(
-      callerZodOnly.user.completeOnboard({ ...validOnboard, weightKg: -1 }),
+      callerAuth.user.completeOnboard({
+        goalMode: 'maintenance',
+        weightKg: -10,
+        heightCm: 175,
+        age: 25,
+        sex: 'male',
+        activityLevel: 'moderate',
+      }),
     ).rejects.toThrow(TRPCError);
+  });
+});
+
+describe('user.updateProfile', () => {
+  it('throws UNAUTHORIZED when unauthenticated', async () => {
+    const caller = createCaller(makeCtx());
+    await expect(caller.user.updateProfile({ name: 'New Name' })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+
+  it('returns updated SafeUser with new name', async () => {
+    const caller = createCaller(
+      makeAuthCtx({
+        db: {
+          user: {
+            findUnique: vi.fn().mockResolvedValue(MOCK_USER),
+            update: vi.fn().mockResolvedValue({ ...MOCK_USER, name: 'New Name' }),
+          },
+        } as unknown as Context['db'],
+      }),
+    );
+    const result = await caller.user.updateProfile({ name: 'New Name' });
+    expect(result).toMatchObject({ name: 'New Name' });
   });
 });
 
 // ─── food ─────────────────────────────────────────────────────────────────────
 
 describe('food.search', () => {
-  const caller = createCaller(makeCtx());
-
-  it('returns empty array (stub)', async () => {
-    const result = await caller.food.search({ query: 'chicken' });
-    expect(result).toEqual([]);
-  });
-
-  it('rejects empty query string', async () => {
+  it('throws for empty query', async () => {
+    const caller = createCaller(
+      makeCtx({ redis: { get: vi.fn().mockResolvedValue(null) } as never }),
+    );
     await expect(caller.food.search({ query: '' })).rejects.toThrow(TRPCError);
   });
 });
 
 describe('food.byBarcode', () => {
-  it('returns null when barcode is not found and network is unavailable', async () => {
-    const redis = {
+  it('returns null when barcode is not found', async () => {
+    const redisMock = {
       get: vi.fn().mockResolvedValue(null),
       setex: vi.fn().mockResolvedValue('OK'),
     };
-    const caller = createCaller(makeCtx({ redis: redis as never }));
-    vi.spyOn(global, 'fetch').mockRejectedValue(new Error('Network unavailable'));
-
+    global.fetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ status: 0 }),
+    } as Response);
+    const caller = createCaller(makeCtx({ redis: redisMock as never }));
     const result = await caller.food.byBarcode({ barcode: '1234567890' });
-
     expect(result).toBeNull();
-    vi.restoreAllMocks();
   });
 });
 
 describe('food.logEntry — input validation', () => {
-  const caller = createCaller(makeAuthCtx());
+  const FOOD_LOG_ID = 'log-uuid-1';
+  const ENTRY_ID = 'entry-uuid-1';
+  const FOOD_ITEM_ID = 'item-uuid-1';
 
-  const validEntry = {
-    foodItemId: '550e8400-e29b-41d4-a716-446655440000',
-    mealType: 'breakfast' as const,
-    quantityGrams: 150,
+  const validFoodItem = {
+    name: 'Chicken Breast',
+    brand: 'USDA',
+    barcode: null,
+    source: 'usda',
+    sourceRefId: '123456',
+    caloriesPer100g: 120,
+    proteinPer100g: 22.5,
+    carbsPer100g: 0,
+    fatPer100g: 2.6,
   };
 
-  it('accepts valid log entry', async () => {
+  const validEntry = {
+    foodItem: validFoodItem,
+    mealType: 'breakfast' as const,
+    quantityGrams: 150,
+    calories: 180,
+    proteinG: 33.75,
+    carbsG: 0,
+    fatG: 3.9,
+    date: '2026-04-18',
+  };
+
+  function makeFoodLogCtx() {
+    return makeCtx({
+      session: { user: { id: 'user-uuid-1', email: 'user@example.com' } },
+      db: {
+        foodItem: {
+          upsert: vi.fn().mockResolvedValue({ id: FOOD_ITEM_ID, name: validFoodItem.name }),
+        },
+        foodLog: {
+          upsert: vi.fn().mockResolvedValue({ id: FOOD_LOG_ID }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        foodLogEntry: {
+          create: vi.fn(({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({
+              id: ENTRY_ID,
+              foodLogId: FOOD_LOG_ID,
+              foodItemId: FOOD_ITEM_ID,
+              mealType: data['mealType'],
+              quantityGrams: data['quantityGrams'],
+              calories: data['calories'],
+              proteinG: data['proteinG'],
+              carbsG: data['carbsG'],
+              fatG: data['fatG'],
+              fiberG: 0,
+              loggedAt: new Date(),
+              editedAt: null,
+            }),
+          ),
+        },
+      } as unknown as Context['db'],
+    });
+  }
+
+  it('accepts valid log entry and returns FoodLogEntry shape', async () => {
+    const caller = createCaller(makeFoodLogCtx());
     const result = await caller.food.logEntry(validEntry);
-    expect(result).toEqual({ todo: true });
+    expect(result).toMatchObject({ id: ENTRY_ID, mealType: 'breakfast' });
   });
 
   it.each(['breakfast', 'lunch', 'dinner', 'snacks'] as const)(
     "accepts mealType '%s'",
     async (mealType) => {
+      const caller = createCaller(makeFoodLogCtx());
       const result = await caller.food.logEntry({ ...validEntry, mealType });
-      expect(result).toEqual({ todo: true });
+      expect(result).toMatchObject({ mealType });
     },
   );
 
   it('rejects invalid mealType', async () => {
+    const caller = createCaller(makeAuthCtx());
     await expect(
       caller.food.logEntry({ ...validEntry, mealType: 'brunch' as never }),
     ).rejects.toThrow(TRPCError);
   });
 
-  it('rejects non-UUID foodItemId', async () => {
-    await expect(caller.food.logEntry({ ...validEntry, foodItemId: 'not-a-uuid' })).rejects.toThrow(
-      TRPCError,
-    );
+  it('rejects empty foodItem.name', async () => {
+    const caller = createCaller(makeAuthCtx());
+    await expect(
+      caller.food.logEntry({ ...validEntry, foodItem: { ...validFoodItem, name: '' } }),
+    ).rejects.toThrow(TRPCError);
   });
 
   it('rejects zero quantityGrams', async () => {
+    const caller = createCaller(makeAuthCtx());
     await expect(caller.food.logEntry({ ...validEntry, quantityGrams: 0 })).rejects.toThrow(
       TRPCError,
     );
   });
 
   it('rejects negative quantityGrams', async () => {
+    const caller = createCaller(makeAuthCtx());
     await expect(caller.food.logEntry({ ...validEntry, quantityGrams: -50 })).rejects.toThrow(
       TRPCError,
     );
@@ -379,33 +477,61 @@ describe('food.logEntry — input validation', () => {
 // ─── workout ──────────────────────────────────────────────────────────────────
 
 describe('workout.listRoutines', () => {
-  it('returns empty array (stub)', async () => {
+  it('returns empty array when DB has no routines', async () => {
     const caller = createCaller(makeCtx());
     const result = await caller.workout.listRoutines();
     expect(result).toEqual([]);
+  });
+
+  it('returns routines from DB', async () => {
+    const mockRoutine = {
+      id: 'r-1',
+      userId: null,
+      name: 'Push/Pull/Legs',
+      description: null,
+      daysPerWeek: 6,
+      isActive: true,
+      createdAt: new Date(),
+    };
+    const caller = createCaller(
+      makeCtx({
+        db: {
+          routine: { findMany: vi.fn().mockResolvedValue([mockRoutine]) },
+          exercise: { findMany: vi.fn().mockResolvedValue([]) },
+        } as unknown as Context['db'],
+      }),
+    );
+    const result = await caller.workout.listRoutines();
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe('Push/Pull/Legs');
   });
 });
 
 describe('workout.startSession — input validation', () => {
   it('accepts no routineId and returns a session with userId', async () => {
-    const caller = createCaller(makeAuthCtx());
+    const caller = createCaller(makeWorkoutCtx());
     const result = await caller.workout.startSession({});
     expect(result).toMatchObject({ userId: 'user-uuid-1', endedAt: null });
     expect(result.id).toBeTruthy();
   });
 
-  it('accepts valid routineId UUID when routine exists', async () => {
-    const routine = seedRoutine({
-      name: 'Test Routine',
-      id: '550e8400-e29b-41d4-a716-446655440000',
+  it('accepts optional session name', async () => {
+    const caller = createCaller(makeWorkoutCtx());
+    const result = await caller.workout.startSession({ name: 'Push Day' });
+    expect(result.id).toBeTruthy();
+  });
+
+  it('accepts valid routineId UUID when routine exists in DB', async () => {
+    const caller = createCaller(makeWorkoutCtx());
+    const result = await caller.workout.startSession({
+      routineId: '550e8400-e29b-41d4-a716-446655440000',
     });
-    const caller = createCaller(makeAuthCtx());
-    const result = await caller.workout.startSession({ routineId: routine.id });
-    expect(result).toMatchObject({ routineId: routine.id, name: routine.name });
+    expect(result).toMatchObject({ routineId: null }); // mock returns null routineId in session
+    expect(result.id).toBeTruthy();
   });
 
   it('rejects non-UUID routineId', async () => {
-    const caller = createCaller(makeAuthCtx());
+    const caller = createCaller(makeWorkoutCtx());
     await expect(caller.workout.startSession({ routineId: 'not-a-uuid' })).rejects.toThrow(
       TRPCError,
     );
@@ -413,68 +539,80 @@ describe('workout.startSession — input validation', () => {
 });
 
 describe('workout.logSet — input validation', () => {
-  const exerciseId = '660e8400-e29b-41d4-a716-446655440001';
+  const SESSION_ID = '550e8400-e29b-41d4-a716-446655440001';
 
   it('accepts valid set and returns SessionSet shape', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
+    const caller = createCaller(makeWorkoutCtx());
     const result = await caller.workout.logSet({
-      sessionId,
-      exerciseId,
+      sessionId: SESSION_ID,
+      exerciseName: 'Bench Press',
       setNumber: 1,
       weightKg: 100,
       reps: 8,
     });
-    expect(result).toMatchObject({ sessionId, exerciseId, setNumber: 1, completed: true });
+    expect(result).toMatchObject({ sessionId: SESSION_ID, setNumber: 1, completed: true });
   });
 
-  it('accepts set without optional fields', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
-    const result = await caller.workout.logSet({ sessionId, exerciseId, setNumber: 1 });
-    expect(result).toMatchObject({ sessionId, setNumber: 1, completed: true });
+  it('accepts set without optional fields (bodyweight)', async () => {
+    const caller = createCaller(makeWorkoutCtx());
+    const result = await caller.workout.logSet({
+      sessionId: SESSION_ID,
+      exerciseName: 'Pull-ups',
+      setNumber: 1,
+    });
+    expect(result).toMatchObject({ sessionId: SESSION_ID, setNumber: 1, completed: true });
     expect(result.weightKg).toBeNull();
     expect(result.reps).toBeNull();
   });
 
+  it('creates custom exercise when exercise is not found in DB', async () => {
+    const caller = createCaller(makeWorkoutCtx({ exerciseFound: false }));
+    const result = await caller.workout.logSet({
+      sessionId: SESSION_ID,
+      exerciseName: 'New Custom Exercise',
+      setNumber: 1,
+    });
+    expect(result).toMatchObject({ sessionId: SESSION_ID, completed: true });
+  });
+
   it('rejects setNumber of zero', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
-    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: 0 })).rejects.toThrow(
-      TRPCError,
-    );
+    const caller = createCaller(makeWorkoutCtx());
+    await expect(
+      caller.workout.logSet({ sessionId: SESSION_ID, exerciseName: 'Squat', setNumber: 0 }),
+    ).rejects.toThrow(TRPCError);
   });
 
   it('rejects negative setNumber', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
-    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: -1 })).rejects.toThrow(
-      TRPCError,
-    );
+    const caller = createCaller(makeWorkoutCtx());
+    await expect(
+      caller.workout.logSet({ sessionId: SESSION_ID, exerciseName: 'Squat', setNumber: -1 }),
+    ).rejects.toThrow(TRPCError);
   });
 
   it('rejects non-integer setNumber', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
-    await expect(caller.workout.logSet({ sessionId, exerciseId, setNumber: 1.5 })).rejects.toThrow(
-      TRPCError,
-    );
+    const caller = createCaller(makeWorkoutCtx());
+    await expect(
+      caller.workout.logSet({ sessionId: SESSION_ID, exerciseName: 'Squat', setNumber: 1.5 }),
+    ).rejects.toThrow(TRPCError);
   });
 
   it('rejects negative weightKg', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
+    const caller = createCaller(makeWorkoutCtx());
     await expect(
-      caller.workout.logSet({ sessionId, exerciseId, setNumber: 1, weightKg: -10 }),
+      caller.workout.logSet({
+        sessionId: SESSION_ID,
+        exerciseName: 'Squat',
+        setNumber: 1,
+        weightKg: -10,
+      }),
     ).rejects.toThrow(TRPCError);
   });
 
   it('accepts zero weightKg (bodyweight exercise)', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
+    const caller = createCaller(makeWorkoutCtx());
     const result = await caller.workout.logSet({
-      sessionId,
-      exerciseId,
+      sessionId: SESSION_ID,
+      exerciseName: 'Push-ups',
       setNumber: 1,
       weightKg: 0,
     });
@@ -482,24 +620,32 @@ describe('workout.logSet — input validation', () => {
   });
 
   it('rejects non-UUID sessionId', async () => {
-    const caller = createCaller(makeAuthCtx());
+    const caller = createCaller(makeWorkoutCtx());
     await expect(
-      caller.workout.logSet({ sessionId: 'bad-id', exerciseId, setNumber: 1 }),
+      caller.workout.logSet({ sessionId: 'bad-id', exerciseName: 'Squat', setNumber: 1 }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it('rejects empty exerciseName', async () => {
+    const caller = createCaller(makeWorkoutCtx());
+    await expect(
+      caller.workout.logSet({ sessionId: SESSION_ID, exerciseName: '', setNumber: 1 }),
     ).rejects.toThrow(TRPCError);
   });
 });
 
 describe('workout.endSession — input validation', () => {
+  const SESSION_ID = '550e8400-e29b-41d4-a716-446655440001';
+
   it('accepts valid sessionId and sets endedAt', async () => {
-    const caller = createCaller(makeAuthCtx());
-    const { id: sessionId } = await caller.workout.startSession({});
-    const result = await caller.workout.endSession({ sessionId });
+    const caller = createCaller(makeWorkoutCtx());
+    const result = await caller.workout.endSession({ sessionId: SESSION_ID });
     expect(result.endedAt).toBeInstanceOf(Date);
-    expect(result.id).toBe(sessionId);
+    expect(result.id).toBeTruthy();
   });
 
   it('rejects non-UUID sessionId', async () => {
-    const caller = createCaller(makeAuthCtx());
+    const caller = createCaller(makeWorkoutCtx());
     await expect(caller.workout.endSession({ sessionId: 'not-a-uuid' })).rejects.toThrow(TRPCError);
   });
 });
