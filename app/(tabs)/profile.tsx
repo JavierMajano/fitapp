@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoalWeightWidget } from '@/components/GoalWeightWidget';
 import { ProgressChartWidget } from '@/components/ProgressChartWidget';
 import { trpc } from '@/lib/trpc';
+import { kgToLbs, toMetricWeight } from '@/lib/units';
 import type { UnitSystem } from '@/lib/units';
 import type { GoalMode, User } from '@/store/auth';
 import { useAuthStore } from '@/store/auth';
@@ -90,6 +91,7 @@ interface EditProfileModalProps {
   initialWeightKg: number | null;
   initialGoalWeightKg: number | null;
   initialGoalTargetDate: string | null;
+  unitSystem: UnitSystem;
   onSave: (data: {
     name?: string;
     weightKg?: number;
@@ -106,13 +108,24 @@ function EditProfileModal({
   initialWeightKg,
   initialGoalWeightKg,
   initialGoalTargetDate,
+  unitSystem,
   onSave,
   isPending,
 }: EditProfileModalProps) {
   const [name, setName] = useState(initialName);
-  const [weight, setWeight] = useState(initialWeightKg ? String(initialWeightKg) : '');
+  const [weight, setWeight] = useState(
+    initialWeightKg
+      ? unitSystem === 'imperial'
+        ? kgToLbs(String(initialWeightKg))
+        : String(initialWeightKg)
+      : '',
+  );
   const [goalWeight, setGoalWeight] = useState(
-    initialGoalWeightKg ? String(initialGoalWeightKg) : '',
+    initialGoalWeightKg
+      ? unitSystem === 'imperial'
+        ? kgToLbs(String(initialGoalWeightKg))
+        : String(initialGoalWeightKg)
+      : '',
   );
   // Store as YYYY-MM-DD for the text input; convert to ISO on save
   const [goalTargetDate, setGoalTargetDate] = useState(isoToDateInput(initialGoalTargetDate));
@@ -126,9 +139,9 @@ function EditProfileModal({
     } = {};
     if (name.trim() && name.trim() !== initialName) data.name = name.trim();
     const wt = parseFloat(weight);
-    if (!isNaN(wt) && wt > 0) data.weightKg = wt;
+    if (!isNaN(wt) && wt > 0) data.weightKg = toMetricWeight(weight, unitSystem);
     const gw = parseFloat(goalWeight);
-    if (!isNaN(gw) && gw > 0) data.goalWeightKg = gw;
+    if (!isNaN(gw) && gw > 0) data.goalWeightKg = toMetricWeight(goalWeight, unitSystem);
     // Compare against the initial YYYY-MM-DD display value
     const initialDisplay = isoToDateInput(initialGoalTargetDate);
     if (goalTargetDate !== initialDisplay) {
@@ -170,25 +183,29 @@ function EditProfileModal({
                 autoFocus
               />
 
-              <Text className="mb-2 text-xs text-zinc-400">Current weight (kg)</Text>
+              <Text className="mb-2 text-xs text-zinc-400">
+                Current weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+              </Text>
               <TextInput
                 testID="profile-weight-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
                 className="mb-4 rounded-xl px-4 py-3 text-white"
                 keyboardType="numeric"
-                placeholder="e.g. 75"
+                placeholder={unitSystem === 'imperial' ? 'e.g. 165' : 'e.g. 75'}
                 placeholderTextColor="#52525b"
                 value={weight}
                 onChangeText={setWeight}
               />
 
-              <Text className="mb-2 text-xs text-zinc-400">Goal weight (kg)</Text>
+              <Text className="mb-2 text-xs text-zinc-400">
+                Goal weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+              </Text>
               <TextInput
                 testID="profile-goal-weight-input"
                 style={{ backgroundColor: '#222222', color: '#fff' }}
                 className="mb-4 rounded-xl px-4 py-3 text-white"
                 keyboardType="numeric"
-                placeholder="e.g. 70"
+                placeholder={unitSystem === 'imperial' ? 'e.g. 155' : 'e.g. 70'}
                 placeholderTextColor="#52525b"
                 value={goalWeight}
                 onChangeText={setGoalWeight}
@@ -350,8 +367,12 @@ export default function ProfileScreen() {
                 },
                 {
                   label: 'Weight',
-                  val: user?.weightKg ? `${user.weightKg}` : '—',
-                  unit: 'kg',
+                  val: user?.weightKg
+                    ? unitSystem === 'imperial'
+                      ? kgToLbs(String(user.weightKg))
+                      : `${user.weightKg}`
+                    : '—',
+                  unit: unitSystem === 'metric' ? 'kg' : 'lbs',
                 },
               ].map((s) => (
                 <View
@@ -448,6 +469,7 @@ export default function ProfileScreen() {
           initialWeightKg={user.weightKg}
           initialGoalWeightKg={user.goalWeightKg}
           initialGoalTargetDate={user.goalTargetDate}
+          unitSystem={unitSystem}
           onSave={(data) => updateProfileMut.mutate(data)}
           isPending={updateProfileMut.isPending}
         />

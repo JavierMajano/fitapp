@@ -60,7 +60,11 @@ async function createTestUser(label) {
   // Server returns flat: { result: { data: { token, user } } }
   var token =
     (data && data.result && data.result.data && data.result.data.token) ||
-    (data && data.result && data.result.data && data.result.data.json && data.result.data.json.token);
+    (data &&
+      data.result &&
+      data.result.data &&
+      data.result.data.json &&
+      data.result.data.json.token);
   if (!token) throw new Error('signUp returned no token: ' + JSON.stringify(data));
   return { token: token, email: email, password: password, name: name };
 }
@@ -79,11 +83,7 @@ async function completeOnboarding(token) {
     token,
   );
   // goalWeightKg lives in updateProfile, not completeOnboard
-  await apiPost(
-    'user.updateProfile',
-    { goalWeightKg: 75 },
-    token,
-  );
+  await apiPost('user.updateProfile', { goalWeightKg: 75 }, token);
 }
 
 // ── Browser helpers ───────────────────────────────────────────────────────────
@@ -153,12 +153,23 @@ async function suiteA(browser, prefix, results, deviceConfig, creds) {
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(1500);
     await page.waitForSelector(td('signin-email-input'), { timeout: 10000 });
-    push('Sign-in page renders with email/password inputs', 'pass', await shot(page, prefix + '-A1-signin'));
+    push(
+      'Sign-in page renders with email/password inputs',
+      'pass',
+      await shot(page, prefix + '-A1-signin'),
+    );
   } catch (e) {
-    push('Sign-in page renders with email/password inputs', 'fail', await shot(page, prefix + '-A1-fail'));
+    push(
+      'Sign-in page renders with email/password inputs',
+      'fail',
+      await shot(page, prefix + '-A1-fail'),
+    );
     // Try direct URL
     try {
-      await page.goto(TARGET_URL + '/(auth)/sign-in', { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.goto(TARGET_URL + '/(auth)/sign-in', {
+        waitUntil: 'domcontentloaded',
+        timeout: 10000,
+      });
       await page.waitForTimeout(800);
     } catch (_) {}
   }
@@ -169,9 +180,17 @@ async function suiteA(browser, prefix, results, deviceConfig, creds) {
     await page.locator(td('signin-password-input')).fill('WrongPassword99!');
     await page.locator(td('signin-btn')).click({ timeout: 5000 });
     await page.waitForSelector(td('signin-error'), { timeout: 8000 });
-    push('Sign-in: wrong password shows error banner', 'pass', await shot(page, prefix + '-A2-signin-error'));
+    push(
+      'Sign-in: wrong password shows error banner',
+      'pass',
+      await shot(page, prefix + '-A2-signin-error'),
+    );
   } catch (e) {
-    push('Sign-in: wrong password shows error banner', 'fail', await shot(page, prefix + '-A2-fail'));
+    push(
+      'Sign-in: wrong password shows error banner',
+      'fail',
+      await shot(page, prefix + '-A2-fail'),
+    );
   }
 
   // A3: "Sign Up" link navigates to sign-up page
@@ -180,9 +199,16 @@ async function suiteA(browser, prefix, results, deviceConfig, creds) {
     await page.waitForSelector(td('signup-name-input'), { timeout: 8000 });
     push('Sign-in: "Sign Up" link navigates to sign-up', 'pass', null);
   } catch (e) {
-    push('Sign-in: "Sign Up" link navigates to sign-up', 'fail', await shot(page, prefix + '-A3-fail'));
+    push(
+      'Sign-in: "Sign Up" link navigates to sign-up',
+      'fail',
+      await shot(page, prefix + '-A3-fail'),
+    );
     try {
-      await page.goto(TARGET_URL + '/(auth)/sign-up', { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await page.goto(TARGET_URL + '/(auth)/sign-up', {
+        waitUntil: 'domcontentloaded',
+        timeout: 10000,
+      });
       await page.waitForTimeout(800);
     } catch (_) {}
   }
@@ -208,7 +234,11 @@ async function suiteA(browser, prefix, results, deviceConfig, creds) {
     await page.waitForSelector(td('signup-error'), { timeout: 6000 });
     push('Sign-up: password < 8 chars shows error banner', 'pass', null);
   } catch (e) {
-    push('Sign-up: password < 8 chars shows error banner', 'fail', await shot(page, prefix + '-A5-fail'));
+    push(
+      'Sign-up: password < 8 chars shows error banner',
+      'fail',
+      await shot(page, prefix + '-A5-fail'),
+    );
   }
 
   await ctx.close();
@@ -238,9 +268,17 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     await page.locator(td('onboard-continue-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(700);
     await page.waitForSelector(td('onboard-weight-input'), { timeout: 8000 });
-    push('Onboard step 0: name input filled + Continue advances to step 1', 'pass', await shot(page, prefix + '-B1-step1'));
+    push(
+      'Onboard step 0: name input filled + Continue advances to step 1',
+      'pass',
+      await shot(page, prefix + '-B1-step1'),
+    );
   } catch (e) {
-    push('Onboard step 0: name input filled + Continue advances to step 1', 'fail', await shot(page, prefix + '-B1-fail'));
+    push(
+      'Onboard step 0: name input filled + Continue advances to step 1',
+      'fail',
+      await shot(page, prefix + '-B1-fail'),
+    );
   }
 
   // B2: Step 1 — unit dropdown opens with Imperial option
@@ -253,7 +291,11 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     await page.locator(td('onboard-unit-metric')).click({ timeout: 3000 });
     await page.waitForTimeout(300);
   } catch (e) {
-    push('Onboard step 1: unit dropdown opens, Imperial option visible', 'fail', await shot(page, prefix + '-B2-fail'));
+    push(
+      'Onboard step 1: unit dropdown opens, Imperial option visible',
+      'fail',
+      await shot(page, prefix + '-B2-fail'),
+    );
   }
 
   // B3: Step 1 — fill measurements + Continue advances to step 2
@@ -268,7 +310,11 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     await page.waitForSelector(td('onboard-goal-maintenance'), { timeout: 8000 });
     push('Onboard step 1: measurements filled + Continue advances to step 2', 'pass', null);
   } catch (e) {
-    push('Onboard step 1: measurements filled + Continue advances to step 2', 'fail', await shot(page, prefix + '-B3-fail'));
+    push(
+      'Onboard step 1: measurements filled + Continue advances to step 2',
+      'fail',
+      await shot(page, prefix + '-B3-fail'),
+    );
   }
 
   // B4: Step 2 — Maintenance goal selected + Continue advances to step 3
@@ -280,7 +326,11 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     await page.waitForSelector(td('onboard-activity-moderate'), { timeout: 8000 });
     push('Onboard step 2: Maintenance goal selected + Continue advances to step 3', 'pass', null);
   } catch (e) {
-    push('Onboard step 2: Maintenance goal selected + Continue advances to step 3', 'fail', await shot(page, prefix + '-B4-fail'));
+    push(
+      'Onboard step 2: Maintenance goal selected + Continue advances to step 3',
+      'fail',
+      await shot(page, prefix + '-B4-fail'),
+    );
   }
 
   // B5: Step 3 — Moderately active selected + Continue advances to step 4
@@ -292,7 +342,11 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     await page.waitForSelector(td('onboard-tdee-value'), { timeout: 8000 });
     push('Onboard step 3: Moderately active selected + Continue advances to step 4', 'pass', null);
   } catch (e) {
-    push('Onboard step 3: Moderately active selected + Continue advances to step 4', 'fail', await shot(page, prefix + '-B5-fail'));
+    push(
+      'Onboard step 3: Moderately active selected + Continue advances to step 4',
+      'fail',
+      await shot(page, prefix + '-B5-fail'),
+    );
   }
 
   // B6: Step 4 — TDEE value shown in valid range
@@ -302,7 +356,11 @@ async function suiteB(browser, prefix, results, deviceConfig, unonboardedToken) 
     if (!tdeeNum || tdeeNum < 1000 || tdeeNum > 6000) {
       throw new Error('TDEE out of expected range (1000–6000): "' + tdeeText + '"');
     }
-    push('Onboard step 4: TDEE value shown (' + tdeeNum + ' kcal)', 'pass', await shot(page, prefix + '-B6-tdee'));
+    push(
+      'Onboard step 4: TDEE value shown (' + tdeeNum + ' kcal)',
+      'pass',
+      await shot(page, prefix + '-B6-tdee'),
+    );
   } catch (e) {
     push('Onboard step 4: TDEE value shown', 'fail', await shot(page, prefix + '-B6-fail'));
   }
@@ -328,7 +386,11 @@ async function suiteC(page, prefix, results) {
     if (!/Good (morning|afternoon|evening)/.test(greetText || '')) {
       throw new Error('Unexpected greeting text: ' + greetText);
     }
-    push('Dashboard: greeting matches time of day (' + (greetText || '').split(',')[0].trim() + ')', 'pass', await shot(page, prefix + '-C1-dashboard'));
+    push(
+      'Dashboard: greeting matches time of day (' + (greetText || '').split(',')[0].trim() + ')',
+      'pass',
+      await shot(page, prefix + '-C1-dashboard'),
+    );
   } catch (e) {
     push('Dashboard: greeting matches time of day', 'fail', await shot(page, prefix + '-C1-fail'));
   }
@@ -348,7 +410,11 @@ async function suiteC(page, prefix, results) {
     await page.waitForSelector('text=Fat', { timeout: 3000 });
     push('Dashboard: Protein / Carbs / Fat macro bars visible', 'pass', null);
   } catch (e) {
-    push('Dashboard: Protein / Carbs / Fat macro bars visible', 'fail', await shot(page, prefix + '-C3-fail'));
+    push(
+      'Dashboard: Protein / Carbs / Fat macro bars visible',
+      'fail',
+      await shot(page, prefix + '-C3-fail'),
+    );
   }
 
   // C4: Stats row rendered (shows Calories label)
@@ -412,8 +478,17 @@ async function suiteD(page, prefix, results) {
     await page.locator(td('date-nav-prev')).click({ timeout: 5000 });
     await page.waitForTimeout(700);
     var newLabel = await page.locator(td('date-nav-label')).textContent({ timeout: 5000 });
-    if ((prevLabel || '').trim() === (newLabel || '').trim()) throw new Error('Date label did not change after prev click');
-    push('Food: DateNav prev changes date label (' + (prevLabel || '').trim() + ' → ' + (newLabel || '').trim() + ')', 'pass', null);
+    if ((prevLabel || '').trim() === (newLabel || '').trim())
+      throw new Error('Date label did not change after prev click');
+    push(
+      'Food: DateNav prev changes date label (' +
+        (prevLabel || '').trim() +
+        ' → ' +
+        (newLabel || '').trim() +
+        ')',
+      'pass',
+      null,
+    );
   } catch (e) {
     push('Food: DateNav prev changes date label', 'fail', await shot(page, prefix + '-D3-fail'));
   }
@@ -432,7 +507,11 @@ async function suiteD(page, prefix, results) {
     await page.locator(td('add-food-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(600);
     await page.waitForSelector('text=Add Food', { timeout: 6000 });
-    push('Food: add-food-btn opens Add Food modal', 'pass', await shot(page, prefix + '-D5-food-modal'));
+    push(
+      'Food: add-food-btn opens Add Food modal',
+      'pass',
+      await shot(page, prefix + '-D5-food-modal'),
+    );
   } catch (e) {
     push('Food: add-food-btn opens Add Food modal', 'fail', await shot(page, prefix + '-D5-fail'));
   }
@@ -443,10 +522,18 @@ async function suiteD(page, prefix, results) {
     await page.locator(td('food-search-input')).fill('chicken');
     await page.waitForTimeout(2000); // USDA API can be slow; wait longer
     await page.waitForSelector(td('food-result-0'), { timeout: 20000 });
-    push('Food: searching "chicken" returns results', 'pass', await shot(page, prefix + '-D6-food-results'));
+    push(
+      'Food: searching "chicken" returns results',
+      'pass',
+      await shot(page, prefix + '-D6-food-results'),
+    );
     searchWorked = true;
   } catch (e) {
-    push('Food: searching "chicken" returns results', 'fail', await shot(page, prefix + '-D6-fail'));
+    push(
+      'Food: searching "chicken" returns results',
+      'fail',
+      await shot(page, prefix + '-D6-fail'),
+    );
   }
 
   // D7: First result click → quantity step shown
@@ -459,7 +546,11 @@ async function suiteD(page, prefix, results) {
       push('Food: first result click shows quantity step', 'pass', null);
       quantityStepShown = true;
     } catch (e) {
-      push('Food: first result click shows quantity step', 'fail', await shot(page, prefix + '-D7-fail'));
+      push(
+        'Food: first result click shows quantity step',
+        'fail',
+        await shot(page, prefix + '-D7-fail'),
+      );
     }
   } else {
     push('Food: first result click shows quantity step', 'skip', null);
@@ -468,7 +559,9 @@ async function suiteD(page, prefix, results) {
   // D8: Quantity input present with default value
   if (quantityStepShown) {
     try {
-      var qtyInput = page.locator('input[inputmode="decimal"], input[inputmode="numeric"], input[type="text"]').first();
+      var qtyInput = page
+        .locator('input[inputmode="decimal"], input[inputmode="numeric"], input[type="text"]')
+        .first();
       var qtyVal = await qtyInput.inputValue({ timeout: 3000 });
       if (!qtyVal) await qtyInput.fill('100');
       push('Food: quantity input present (value=' + (qtyVal || '100') + ')', 'pass', null);
@@ -580,9 +673,17 @@ async function suiteE(page, prefix, results) {
     await page.locator(td('start-session-btn')).click({ timeout: 8000 });
     await page.waitForTimeout(600);
     await page.waitForSelector('text=/session|start|routine/i', { timeout: 6000 });
-    push('Workout: start-session-btn opens StartSessionModal', 'pass', await shot(page, prefix + '-E3-start-modal'));
+    push(
+      'Workout: start-session-btn opens StartSessionModal',
+      'pass',
+      await shot(page, prefix + '-E3-start-modal'),
+    );
   } catch (e) {
-    push('Workout: start-session-btn opens StartSessionModal', 'fail', await shot(page, prefix + '-E3-fail'));
+    push(
+      'Workout: start-session-btn opens StartSessionModal',
+      'fail',
+      await shot(page, prefix + '-E3-fail'),
+    );
   }
 
   // E4: start-empty-session-btn → active session with + Add Set
@@ -594,7 +695,11 @@ async function suiteE(page, prefix, results) {
     push('Workout: Start Empty Session shows active session with + Add Set', 'pass', null);
     sessionStarted = true;
   } catch (e) {
-    push('Workout: Start Empty Session shows active session with + Add Set', 'fail', await shot(page, prefix + '-E4-fail'));
+    push(
+      'Workout: Start Empty Session shows active session with + Add Set',
+      'fail',
+      await shot(page, prefix + '-E4-fail'),
+    );
     // Fallback: try first routine button
     try {
       await page.locator('[data-testid^="routine-btn-"]').first().click({ timeout: 3000 });
@@ -611,7 +716,11 @@ async function suiteE(page, prefix, results) {
       await page.waitForSelector(td('exercise-search-input'), { timeout: 6000 });
       push('Workout: add-set-btn opens exercise search modal', 'pass', null);
     } catch (e) {
-      push('Workout: add-set-btn opens exercise search modal', 'fail', await shot(page, prefix + '-E5-fail'));
+      push(
+        'Workout: add-set-btn opens exercise search modal',
+        'fail',
+        await shot(page, prefix + '-E5-fail'),
+      );
     }
   } else {
     push('Workout: add-set-btn opens exercise search modal', 'skip', null);
@@ -626,7 +735,11 @@ async function suiteE(page, prefix, results) {
       await page.waitForSelector(td('exercise-result-0'), { timeout: 8000 });
       push('Workout: exercise search "Bench" returns results', 'pass', null);
     } catch (e) {
-      push('Workout: exercise search "Bench" returns results', 'fail', await shot(page, prefix + '-E6-fail'));
+      push(
+        'Workout: exercise search "Bench" returns results',
+        'fail',
+        await shot(page, prefix + '-E6-fail'),
+      );
     }
 
     // E7: First exercise result click shows weight/reps inputs
@@ -635,10 +748,18 @@ async function suiteE(page, prefix, results) {
       await page.waitForTimeout(600);
       var inputsCount = await page.locator('input').count();
       if (inputsCount === 0) throw new Error('No inputs found after exercise selection');
-      push('Workout: exercise-result-0 click shows weight/reps inputs', 'pass', await shot(page, prefix + '-E7-log-set'));
+      push(
+        'Workout: exercise-result-0 click shows weight/reps inputs',
+        'pass',
+        await shot(page, prefix + '-E7-log-set'),
+      );
       exerciseSelected = true;
     } catch (e) {
-      push('Workout: exercise-result-0 click shows weight/reps inputs', 'fail', await shot(page, prefix + '-E7-fail'));
+      push(
+        'Workout: exercise-result-0 click shows weight/reps inputs',
+        'fail',
+        await shot(page, prefix + '-E7-fail'),
+      );
     }
   } else {
     push('Workout: exercise search "Bench" returns results', 'skip', null);
@@ -658,7 +779,11 @@ async function suiteE(page, prefix, results) {
       push('Workout: Set 80 × 8 logged via log-set-submit-btn', 'pass', null);
       setLogged = true;
     } catch (e) {
-      push('Workout: Set 80 × 8 logged via log-set-submit-btn', 'fail', await shot(page, prefix + '-E8-fail'));
+      push(
+        'Workout: Set 80 × 8 logged via log-set-submit-btn',
+        'fail',
+        await shot(page, prefix + '-E8-fail'),
+      );
     }
   } else {
     push('Workout: Set 80 × 8 logged via log-set-submit-btn', 'skip', null);
@@ -669,9 +794,15 @@ async function suiteE(page, prefix, results) {
   if (sessionStarted) {
     try {
       // Close any open modal (exercise search / log-set) before finishing
-      try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+      try {
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+      } catch (_) {}
       // Try one more Escape in case a second modal layer is open
-      try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+      try {
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+      } catch (_) {}
       await page.locator(td('finish-session-btn')).click({ timeout: 8000 });
       await page.waitForTimeout(2000);
       var addSetStillVisible = await page.locator(td('add-set-btn')).count();
@@ -682,7 +813,11 @@ async function suiteE(page, prefix, results) {
       );
       sessionFinished = addSetStillVisible === 0;
     } catch (e) {
-      push('Workout: finish-session-btn ends active session', 'fail', await shot(page, prefix + '-E9-fail'));
+      push(
+        'Workout: finish-session-btn ends active session',
+        'fail',
+        await shot(page, prefix + '-E9-fail'),
+      );
     }
   } else {
     push('Workout: finish-session-btn ends active session', 'skip', null);
@@ -692,9 +827,17 @@ async function suiteE(page, prefix, results) {
   if (sessionFinished) {
     try {
       await page.waitForSelector('[data-testid^="session-card-"]', { timeout: 8000 });
-      push('Workout: past session card visible after finish', 'pass', await shot(page, prefix + '-E10-done'));
+      push(
+        'Workout: past session card visible after finish',
+        'pass',
+        await shot(page, prefix + '-E10-done'),
+      );
     } catch (e) {
-      push('Workout: past session card visible after finish', 'fail', await shot(page, prefix + '-E10-fail'));
+      push(
+        'Workout: past session card visible after finish',
+        'fail',
+        await shot(page, prefix + '-E10-fail'),
+      );
     }
   } else {
     push('Workout: past session card visible after finish', 'skip', null);
@@ -715,7 +858,11 @@ async function suiteF(page, prefix, results) {
   // F1: weight-chart container rendered
   try {
     await page.waitForSelector(td('weight-chart'), { timeout: 8000 });
-    push('Progress: weight-chart section rendered', 'pass', await shot(page, prefix + '-F1-progress'));
+    push(
+      'Progress: weight-chart section rendered',
+      'pass',
+      await shot(page, prefix + '-F1-progress'),
+    );
   } catch (e) {
     push('Progress: weight-chart section rendered', 'fail', await shot(page, prefix + '-F1-fail'));
   }
@@ -745,7 +892,11 @@ async function suiteF(page, prefix, results) {
     await page.waitForSelector('text=Log Body Weight', { timeout: 6000 });
     push('Progress: log-weight-btn opens Log Body Weight modal', 'pass', null);
   } catch (e) {
-    push('Progress: log-weight-btn opens Log Body Weight modal', 'fail', await shot(page, prefix + '-F4-fail'));
+    push(
+      'Progress: log-weight-btn opens Log Body Weight modal',
+      'fail',
+      await shot(page, prefix + '-F4-fail'),
+    );
   }
 
   // F5: Log 79.5 kg — value appears in chart
@@ -755,9 +906,17 @@ async function suiteF(page, prefix, results) {
     await page.locator(td('save-weight-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(2000);
     await page.waitForSelector('text=79.5', { timeout: 8000 });
-    push('Progress: 79.5 kg logged, value appears in weight chart', 'pass', await shot(page, prefix + '-F5-logged'));
+    push(
+      'Progress: 79.5 kg logged, value appears in weight chart',
+      'pass',
+      await shot(page, prefix + '-F5-logged'),
+    );
   } catch (e) {
-    push('Progress: 79.5 kg logged, value appears in weight chart', 'fail', await shot(page, prefix + '-F5-fail'));
+    push(
+      'Progress: 79.5 kg logged, value appears in weight chart',
+      'fail',
+      await shot(page, prefix + '-F5-fail'),
+    );
   }
 
   // F6: Switch to 1M range — no crash
@@ -783,7 +942,11 @@ async function suiteF(page, prefix, results) {
   try {
     await page.locator(td('time-range-1w')).first().click({ timeout: 5000 });
     await page.waitForTimeout(500);
-    push('Progress: 1W time range restores default view', 'pass', await shot(page, prefix + '-F8-progress'));
+    push(
+      'Progress: 1W time range restores default view',
+      'pass',
+      await shot(page, prefix + '-F8-progress'),
+    );
   } catch (e) {
     push('Progress: 1W time range restores default view', 'fail', null);
   }
@@ -839,12 +1002,19 @@ async function suiteG(page, prefix, results, creds) {
   // before mobile reaches this step, so we check for the card's presence + any numeric kg value.
   try {
     await page.waitForSelector('text=Goal weight', { timeout: 10000 });
-    var goalWeightText = await page.locator('text=Goal weight').locator('..').textContent({ timeout: 5000 });
+    var goalWeightText = await page
+      .locator('text=Goal weight')
+      .locator('..')
+      .textContent({ timeout: 5000 });
     var hasKg = (goalWeightText || '').includes('kg');
     if (!hasKg) throw new Error('Goal weight card does not contain "kg": ' + goalWeightText);
     push('Profile: goal weight card visible with kg value', 'pass', null);
   } catch (e) {
-    push('Profile: goal weight card visible with kg value', 'fail', await shot(page, prefix + '-G5-fail'));
+    push(
+      'Profile: goal weight card visible with kg value',
+      'fail',
+      await shot(page, prefix + '-G5-fail'),
+    );
   }
 
   // G6: edit-profile-btn opens Edit Profile modal
@@ -854,7 +1024,11 @@ async function suiteG(page, prefix, results, creds) {
     await page.waitForSelector('text=Edit Profile', { timeout: 6000 });
     push('Profile: edit-profile-btn opens Edit Profile modal', 'pass', null);
   } catch (e) {
-    push('Profile: edit-profile-btn opens Edit Profile modal', 'fail', await shot(page, prefix + '-G6-fail'));
+    push(
+      'Profile: edit-profile-btn opens Edit Profile modal',
+      'fail',
+      await shot(page, prefix + '-G6-fail'),
+    );
   }
 
   // G7: Name updated and displayed on profile
@@ -867,8 +1041,15 @@ async function suiteG(page, prefix, results, creds) {
     await page.waitForSelector('text=Regression Updated', { timeout: 8000 });
     push('Profile: name updated to "Regression Updated"', 'pass', null);
   } catch (e) {
-    push('Profile: name updated to "Regression Updated"', 'fail', await shot(page, prefix + '-G7-fail'));
-    try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+    push(
+      'Profile: name updated to "Regression Updated"',
+      'fail',
+      await shot(page, prefix + '-G7-fail'),
+    );
+    try {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    } catch (_) {}
   }
 
   // G8: Goal weight updated via edit modal
@@ -885,10 +1066,42 @@ async function suiteG(page, prefix, results, creds) {
     push('Profile: goal weight updated to "72 kg"', 'pass', null);
   } catch (e) {
     push('Profile: goal weight updated to "72 kg"', 'fail', await shot(page, prefix + '-G8-fail'));
-    try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+    try {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    } catch (_) {}
   }
 
-  // G9: sign-out-btn visible
+  // G9: Goal target date updated via edit modal, year appears in goal-weight-widget
+  try {
+    await page.locator(td('edit-profile-btn')).click({ timeout: 5000 });
+    await page.waitForTimeout(600);
+    await page.waitForSelector(td('profile-goal-target-date-input'), { timeout: 5000 });
+    await page.locator(td('profile-goal-target-date-input')).click({ clickCount: 3 });
+    await page.waitForTimeout(100);
+    await page.locator(td('profile-goal-target-date-input')).fill('2027-06-15');
+    await page.locator(td('save-changes-btn')).click({ timeout: 5000 });
+    await page.waitForTimeout(1500);
+    // Widget renders "by Jun 15, 2027" — assert year is present on the page
+    await page.waitForSelector('text=2027', { timeout: 8000 });
+    push(
+      'Profile: goal target date "2027-06-15" saved, year "2027" visible in goal-weight-widget',
+      'pass',
+      null,
+    );
+  } catch (e) {
+    push(
+      'Profile: goal target date "2027-06-15" saved, year "2027" visible in goal-weight-widget',
+      'fail',
+      await shot(page, prefix + '-G9-target-date-fail'),
+    );
+    try {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    } catch (_) {}
+  }
+
+  // G10: sign-out-btn visible
   try {
     await page.waitForSelector(td('sign-out-btn'), { timeout: 5000 });
     push('Profile: sign-out-btn visible', 'pass', null);
@@ -896,14 +1109,22 @@ async function suiteG(page, prefix, results, creds) {
     push('Profile: sign-out-btn visible', 'fail', null);
   }
 
-  // G10: Sign out redirects to sign-in page
+  // G11: Sign out redirects to sign-in page
   try {
     await page.locator(td('sign-out-btn')).click({ timeout: 5000 });
     await page.waitForTimeout(1500);
     await page.waitForSelector(td('signin-email-input'), { timeout: 10000 });
-    push('Profile: sign out redirects to sign-in page', 'pass', await shot(page, prefix + '-G10-signout'));
+    push(
+      'Profile: sign out redirects to sign-in page',
+      'pass',
+      await shot(page, prefix + '-G10-signout'),
+    );
   } catch (e) {
-    push('Profile: sign out redirects to sign-in page', 'fail', await shot(page, prefix + '-G10-fail'));
+    push(
+      'Profile: sign out redirects to sign-in page',
+      'fail',
+      await shot(page, prefix + '-G10-fail'),
+    );
   }
 }
 
@@ -930,15 +1151,40 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
     await page.waitForTimeout(1200); // Give localStorage time to persist before next navigation
     push('Units: profile unit-btn-lbs switches to imperial', 'pass', null);
   } catch (e) {
-    push('Units: profile unit-btn-lbs switches to imperial', 'fail', await shot(page, prefix + '-H1-fail'));
+    push(
+      'Units: profile unit-btn-lbs switches to imperial',
+      'fail',
+      await shot(page, prefix + '-H1-fail'),
+    );
   }
 
   // H2: Profile shows "lbs" after switch
   try {
     await page.waitForSelector('text=lbs', { timeout: 5000 });
-    push('Units: profile weight stats label changes to "lbs"', 'pass', await shot(page, prefix + '-H2-profile-lbs'));
+    push(
+      'Units: profile weight stats label changes to "lbs"',
+      'pass',
+      await shot(page, prefix + '-H2-profile-lbs'),
+    );
   } catch (e) {
     push('Units: profile weight stats label changes to "lbs"', 'fail', null);
+  }
+
+  // H2b: Weight stat card shows converted lbs value (test user: 80 kg → ~176.4 lbs)
+  try {
+    // "176.4" should appear in the Weight stat card (80 kg converted via kgToLbs)
+    await page.waitForSelector('text=176.4', { timeout: 5000 });
+    push(
+      'Units: Weight stat card shows lbs value after unit switch (80 kg → 176.4 lbs)',
+      'pass',
+      await shot(page, prefix + '-H2b-weight-lbs'),
+    );
+  } catch (e) {
+    push(
+      'Units: Weight stat card shows lbs value after unit switch (80 kg → 176.4 lbs)',
+      'fail',
+      await shot(page, prefix + '-H2b-fail'),
+    );
   }
 
   // H3: Progress log weight modal shows "lbs" label
@@ -951,8 +1197,14 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
   } catch (e) {
-    push('Units: progress log-weight modal shows "lbs" unit label', 'fail', await shot(page, prefix + '-H3-fail'));
-    try { await page.keyboard.press('Escape'); } catch (_) {}
+    push(
+      'Units: progress log-weight modal shows "lbs" unit label',
+      'fail',
+      await shot(page, prefix + '-H3-fail'),
+    );
+    try {
+      await page.keyboard.press('Escape');
+    } catch (_) {}
   }
 
   // H4: Log 176 lbs — value appears in chart
@@ -965,7 +1217,11 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
     await page.waitForSelector('text=176', { timeout: 6000 });
     push('Units: 176 lbs logged, value appears in progress chart', 'pass', null);
   } catch (e) {
-    push('Units: 176 lbs logged, value appears in progress chart', 'fail', await shot(page, prefix + '-H4-fail'));
+    push(
+      'Units: 176 lbs logged, value appears in progress chart',
+      'fail',
+      await shot(page, prefix + '-H4-fail'),
+    );
   }
 
   // H5: Dashboard goal widget visible in lbs mode
@@ -974,7 +1230,11 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
     await page.waitForSelector(td('goal-weight-widget'), { timeout: 8000 });
     push('Units: dashboard goal weight widget visible in lbs mode', 'pass', null);
   } catch (e) {
-    push('Units: dashboard goal weight widget visible in lbs mode', 'fail', await shot(page, prefix + '-H5-fail'));
+    push(
+      'Units: dashboard goal weight widget visible in lbs mode',
+      'fail',
+      await shot(page, prefix + '-H5-fail'),
+    );
   }
 
   // H6: Workout log-set modal shows "lbs" weight label
@@ -993,14 +1253,25 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
     await page.waitForTimeout(600);
     // Now on weight/reps step: should show "Weight (lbs)"
     await page.waitForSelector('text=lbs', { timeout: 5000 });
-    push('Units: workout log-set modal shows "lbs" weight label', 'pass', await shot(page, prefix + '-H6-lbs-modal'));
+    push(
+      'Units: workout log-set modal shows "lbs" weight label',
+      'pass',
+      await shot(page, prefix + '-H6-lbs-modal'),
+    );
     sessionOpenedForH = true;
     // Close the log-set modal
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
   } catch (e) {
-    push('Units: workout log-set modal shows "lbs" weight label', 'fail', await shot(page, prefix + '-H6-fail'));
-    try { await page.keyboard.press('Escape'); await page.waitForTimeout(200); } catch (_) {}
+    push(
+      'Units: workout log-set modal shows "lbs" weight label',
+      'fail',
+      await shot(page, prefix + '-H6-fail'),
+    );
+    try {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    } catch (_) {}
   }
 
   // Cancel the open session if it was started
@@ -1024,7 +1295,11 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
   // H8: Profile reverts to "kg" label
   try {
     await page.waitForSelector('text=kg', { timeout: 5000 });
-    push('Units: profile reverts to "kg" display after switching back', 'pass', await shot(page, prefix + '-H8-kg'));
+    push(
+      'Units: profile reverts to "kg" display after switching back',
+      'pass',
+      await shot(page, prefix + '-H8-kg'),
+    );
   } catch (e) {
     push('Units: profile reverts to "kg" display after switching back', 'fail', null);
   }
@@ -1087,7 +1362,11 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
       await suiteB(browser, prefix, results, deviceConfig, unonboardedToken);
     } else {
       for (var bi = 0; bi < 6; bi++) {
-        results.push({ name: '[' + prefix + '][B] Suite B skipped (no unonboarded user)', status: 'skip', screenshot: null });
+        results.push({
+          name: '[' + prefix + '][B] Suite B skipped (no unonboarded user)',
+          status: 'skip',
+          screenshot: null,
+        });
       }
       console.log('  ⏭ Suite B: skipped');
     }
@@ -1117,9 +1396,15 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
 
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
 
-  var passed = results.filter(function (r) { return r.status === 'pass'; }).length;
-  var skipped = results.filter(function (r) { return r.status === 'skip'; }).length;
-  var failed = results.filter(function (r) { return r.status === 'fail'; }).length;
+  var passed = results.filter(function (r) {
+    return r.status === 'pass';
+  }).length;
+  var skipped = results.filter(function (r) {
+    return r.status === 'skip';
+  }).length;
+  var failed = results.filter(function (r) {
+    return r.status === 'fail';
+  }).length;
 
   console.log('\n╔══════════════════════════════════════════╗');
   console.log('║        REGRESSION TEST RESULTS           ║');
@@ -1133,8 +1418,12 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
   if (failed > 0) {
     console.log('\nFailed assertions:');
     results
-      .filter(function (r) { return r.status === 'fail'; })
-      .forEach(function (r) { console.log('  ❌ ' + r.name); });
+      .filter(function (r) {
+        return r.status === 'fail';
+      })
+      .forEach(function (r) {
+        console.log('  ❌ ' + r.name);
+      });
     process.exit(1);
   }
 })();
