@@ -21,8 +21,6 @@
     "test:e2e:all": "node -e \"require('fs').mkdirSync('playwright-report/screenshots',{recursive:true})\" && node e2e/fitapp-kg.js && node e2e/fitapp-lbs.js && node e2e/fitapp-regression.js && node e2e/report.js"
   },
   "dependencies": {
-    "@gluestack-style/react": "^1.0.57",
-    "@gluestack-ui/themed": "^1.1.73",
     "@sentry/react-native": "~7.2.0",
     "@tanstack/react-query": "^5.40.0",
     "@trpc/client": "^11.0.0",

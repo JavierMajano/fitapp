@@ -1,6 +1,5 @@
 import '../global.css';
 
-import { GluestackUIProvider } from '@gluestack-ui/themed';
 import * as Sentry from '@sentry/react-native';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { router, Stack, useSegments } from 'expo-router';
@@ -8,7 +7,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { gluestackConfig } from '@/config/gluestack';
 import { ErrorToast } from '@components/ErrorToast';
 import { trpc, trpcClient } from '@lib/trpc';
 import { useAuthStore } from '@store/auth';
@@ -123,16 +121,14 @@ export default Sentry.wrap(function RootLayout() {
     >
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <GluestackUIProvider config={gluestackConfig} colorMode="dark">
-            <StatusBar style="light" />
-            <AuthGuard />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <ErrorToast />
-          </GluestackUIProvider>
+          <StatusBar style="light" />
+          <AuthGuard />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <ErrorToast />
         </QueryClientProvider>
       </trpc.Provider>
     </Sentry.ErrorBoundary>
