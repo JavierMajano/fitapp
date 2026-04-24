@@ -6,6 +6,14 @@ import { env } from '../env';
 import { TTL } from '../redis';
 import type { FoodItemResult, LogFoodEntryInput, UpdateFoodEntryInput } from '../schemas';
 
+type DayTotals = {
+  totalCalories: number;
+  totalProteinG: number;
+  totalCarbsG: number;
+  totalFatG: number;
+  totalFiberG: number;
+};
+
 // ─── Open Food Facts ──────────────────────────────────────────────────────────
 
 interface OFFNutriments {
@@ -338,14 +346,23 @@ export async function updateFoodEntry(
   // Recalculate day totals from scratch
   const allEntries = await db.foodLogEntry.findMany({ where: { foodLogId: entry.foodLogId } });
   const totals = allEntries.reduce(
-    (acc, e) => ({
+    (
+      acc: DayTotals,
+      e: { calories: number; proteinG: number; carbsG: number; fatG: number; fiberG: number },
+    ) => ({
       totalCalories: acc.totalCalories + e.calories,
       totalProteinG: acc.totalProteinG + e.proteinG,
       totalCarbsG: acc.totalCarbsG + e.carbsG,
       totalFatG: acc.totalFatG + e.fatG,
       totalFiberG: acc.totalFiberG + e.fiberG,
     }),
-    { totalCalories: 0, totalProteinG: 0, totalCarbsG: 0, totalFatG: 0, totalFiberG: 0 },
+    {
+      totalCalories: 0,
+      totalProteinG: 0,
+      totalCarbsG: 0,
+      totalFatG: 0,
+      totalFiberG: 0,
+    } as DayTotals,
   );
   await db.foodLog.update({ where: { id: entry.foodLogId }, data: totals });
 
@@ -373,14 +390,23 @@ export async function deleteFoodEntry(
   // Recalculate day totals
   const remaining = await db.foodLogEntry.findMany({ where: { foodLogId: entry.foodLogId } });
   const totals = remaining.reduce(
-    (acc, e) => ({
+    (
+      acc: DayTotals,
+      e: { calories: number; proteinG: number; carbsG: number; fatG: number; fiberG: number },
+    ) => ({
       totalCalories: acc.totalCalories + e.calories,
       totalProteinG: acc.totalProteinG + e.proteinG,
       totalCarbsG: acc.totalCarbsG + e.carbsG,
       totalFatG: acc.totalFatG + e.fatG,
       totalFiberG: acc.totalFiberG + e.fiberG,
     }),
-    { totalCalories: 0, totalProteinG: 0, totalCarbsG: 0, totalFatG: 0, totalFiberG: 0 },
+    {
+      totalCalories: 0,
+      totalProteinG: 0,
+      totalCarbsG: 0,
+      totalFatG: 0,
+      totalFiberG: 0,
+    } as DayTotals,
   );
   await db.foodLog.update({ where: { id: entry.foodLogId }, data: totals });
 
