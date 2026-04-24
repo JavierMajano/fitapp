@@ -75,7 +75,8 @@
   "expo": {
     "install": {
       "exclude": [
-        "typescript"
+        "typescript",
+        "eslint-config-expo"
       ]
     }
   },
