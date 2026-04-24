@@ -2,6 +2,7 @@
 const { FlatCompat } = require('@eslint/eslintrc');
 const js = require('@eslint/js');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
+const globals = require('globals');
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
@@ -21,6 +22,15 @@ module.exports = [
     ],
   },
   ...compat.extends('expo', 'prettier'),
+  {
+    files: ['**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.commonjs,
+      },
+    },
+  },
   {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {

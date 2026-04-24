@@ -46,9 +46,7 @@ async function createTestUser() {
     throw new Error(`signUp failed (${signUpRes.status}): ${text}`);
   }
   const signUpData = await signUpRes.json();
-  const token =
-    signUpData?.result?.data?.token ||
-    signUpData?.result?.data?.json?.token;
+  const token = signUpData?.result?.data?.token || signUpData?.result?.data?.json?.token;
   if (!token) throw new Error('signUp returned no token: ' + JSON.stringify(signUpData));
 
   // Complete onboarding so tabs are accessible
@@ -128,10 +126,7 @@ async function runPhase6Flow(page, prefix, results, token) {
 
   try {
     // Greeting (Good morning/afternoon/evening) should be visible
-    await page.waitForSelector(
-      'text=/Good (morning|afternoon|evening)/',
-      { timeout: 5000 },
-    );
+    await page.waitForSelector('text=/Good (morning|afternoon|evening)/', { timeout: 5000 });
     push('Dashboard: time-based greeting shown', 'pass', null);
   } catch (e) {
     push('Dashboard: time-based greeting shown', 'fail', null);
@@ -173,7 +168,11 @@ async function runPhase6Flow(page, prefix, results, token) {
     await page.waitForSelector('text=/egg/i', { timeout: 8000 });
     push('Food: search returns results for "egg"', 'pass', null);
   } catch (e) {
-    push('Food: search returns results for "egg"', 'fail', await shot(page, prefix + '-03-search-fail'));
+    push(
+      'Food: search returns results for "egg"',
+      'fail',
+      await shot(page, prefix + '-03-search-fail'),
+    );
   }
 
   // Select first result
@@ -190,7 +189,11 @@ async function runPhase6Flow(page, prefix, results, token) {
       await page.locator('text=/egg/i').first().click({ timeout: 3000 });
       await page.waitForTimeout(500);
     } catch (_) {}
-    push('Food: food item selected, quantity step shown', 'fail', await shot(page, prefix + '-04-select-fail'));
+    push(
+      'Food: food item selected, quantity step shown',
+      'fail',
+      await shot(page, prefix + '-04-select-fail'),
+    );
   }
 
   // Log 100g to Breakfast
@@ -275,7 +278,10 @@ async function runPhase6Flow(page, prefix, results, token) {
   } catch (_) {
     try {
       // Fallback: look for a "Start" or "Begin" button
-      await page.getByText(/^Start$/).first().click({ timeout: 3000 });
+      await page
+        .getByText(/^Start$/)
+        .first()
+        .click({ timeout: 3000 });
       await page.waitForTimeout(1000);
       sessionStarted = true;
     } catch (_) {}
@@ -288,7 +294,11 @@ async function runPhase6Flow(page, prefix, results, token) {
       await page.waitForSelector('text=+ Add Set', { timeout: 8000 });
       push('Workout: active session screen shown', 'pass', null);
     } catch (e) {
-      push('Workout: active session screen shown', 'fail', await shot(page, prefix + '-08-session-fail'));
+      push(
+        'Workout: active session screen shown',
+        'fail',
+        await shot(page, prefix + '-08-session-fail'),
+      );
     }
 
     // Log Set 1
@@ -350,7 +360,11 @@ async function runPhase6Flow(page, prefix, results, token) {
       var sc11 = await shot(page, prefix + '-11-session-done');
       push('Workout: session finished, past session card shown', 'pass', sc11);
     } catch (e) {
-      push('Workout: session finished, past session card shown', 'fail', await shot(page, prefix + '-11-finish-fail'));
+      push(
+        'Workout: session finished, past session card shown',
+        'fail',
+        await shot(page, prefix + '-11-finish-fail'),
+      );
     }
   } else {
     push('Workout: session finished, past session card shown', 'skip', null);
@@ -364,7 +378,11 @@ async function runPhase6Flow(page, prefix, results, token) {
     await page.waitForSelector('text=Body Weight', { timeout: 8000 });
     push('Progress: Body Weight section visible', 'pass', null);
   } catch (e) {
-    push('Progress: Body Weight section visible', 'fail', await shot(page, prefix + '-12-prog-fail'));
+    push(
+      'Progress: Body Weight section visible',
+      'fail',
+      await shot(page, prefix + '-12-prog-fail'),
+    );
   }
 
   try {
@@ -388,7 +406,11 @@ async function runPhase6Flow(page, prefix, results, token) {
     await page.waitForSelector('text=Log Body Weight', { timeout: 5000 });
     push('Progress: log weight modal opens', 'pass', null);
   } catch (e) {
-    push('Progress: log weight modal opens', 'fail', await shot(page, prefix + '-13-wt-modal-fail'));
+    push(
+      'Progress: log weight modal opens',
+      'fail',
+      await shot(page, prefix + '-13-wt-modal-fail'),
+    );
   }
 
   try {
@@ -489,9 +511,17 @@ async function runPhase6Flow(page, prefix, results, token) {
   try {
     // Goal weight widget: "Goal weight" section + "80kg → 75kg" text
     await page.waitForSelector('text=Goal weight', { timeout: 8000 });
-    push('Dashboard: goal weight widget visible', 'pass', await shot(page, prefix + '-18-dash-goal'));
+    push(
+      'Dashboard: goal weight widget visible',
+      'pass',
+      await shot(page, prefix + '-18-dash-goal'),
+    );
   } catch (e) {
-    push('Dashboard: goal weight widget visible', 'fail', await shot(page, prefix + '-18-goal-fail'));
+    push(
+      'Dashboard: goal weight widget visible',
+      'fail',
+      await shot(page, prefix + '-18-goal-fail'),
+    );
   }
 
   try {
