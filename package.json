@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "npx expo start --web",
     "dev:server": "cd server && npm run dev",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
     "build:web": "expo export -p web",
@@ -22,7 +22,8 @@
   },
   "overrides": {
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "eslint-plugin-react-hooks": "^5.2.0"
   },
   "dependencies": {
     "@gluestack-style/react": "^1.0.57",
@@ -58,8 +59,8 @@
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@types/react": "~18.2.79",
-    "eslint": "^8.57.0",
-    "eslint-config-expo": "~7.1.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~8.0.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.3",
     "husky": "^9.0.11",
@@ -74,7 +75,8 @@
   "expo": {
     "install": {
       "exclude": [
-        "typescript"
+        "typescript",
+        "eslint-config-expo"
       ]
     }
   },

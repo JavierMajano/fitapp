@@ -50,7 +50,6 @@ function signToken(userId: string, email: string): string {
 }
 
 function toSafe(user: DbUser & { passwordHash?: string | null }): SafeUser {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash: _pw, ...rest } = user as DbUser & { passwordHash?: string | null };
   return { ...rest, isOnboarded: rest.goalMode !== null };
 }

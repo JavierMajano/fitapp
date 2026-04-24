@@ -37,7 +37,7 @@ export async function getCalorieHistory(
     db.user.findUnique({ where: { id: userId }, select: { calorieTarget: true } }),
   ]);
 
-  return logs.map((log) => ({
+  return logs.map((log: { logDate: Date; totalCalories: number }) => ({
     date: log.logDate.toISOString().slice(0, 10),
     totalCalories: log.totalCalories,
     calorieTarget: user?.calorieTarget ?? null,
