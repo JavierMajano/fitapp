@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -358,10 +357,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView className="bg-surface-DEFAULT flex-1">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
         <ScrollView
           className="flex-1 px-6 pt-8"
           contentContainerStyle={{ paddingBottom: 40 }}
