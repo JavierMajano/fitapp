@@ -3,7 +3,7 @@ import '../global.css';
 import { GluestackUIProvider } from '@gluestack-ui/themed';
 import * as Sentry from '@sentry/react-native';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { router, Stack, useRootNavigationState, useSegments } from 'expo-router';
+import { router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -87,12 +87,11 @@ const queryClient = new QueryClient({
 
 function AuthGuard() {
   const { token, isLoading, isOnboarded } = useAuthStore();
-  const segments = useSegments();
-  const navState = useRootNavigationState();
+  const segments = useSegments() as unknown as string[];
 
   useEffect(() => {
-    // Wait until navigation is ready and auth has hydrated
-    if (!navState?.key || isLoading) return;
+    // Wait until auth store has hydrated from storage
+    if (isLoading) return;
 
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[1] === 'onboarding';
@@ -104,7 +103,7 @@ function AuthGuard() {
     } else if (token && isOnboarded && inAuth) {
       router.replace('/(tabs)');
     }
-  }, [token, isLoading, isOnboarded, segments, navState?.key]);
+  }, [token, isLoading, isOnboarded, segments]);
 
   return null;
 }
@@ -117,7 +116,11 @@ export default Sentry.wrap(function RootLayout() {
   }, [hydrate]);
 
   return (
-    <Sentry.ErrorBoundary fallback={SentryFallback}>
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <SentryFallback error={error as Error} resetError={resetError} />
+      )}
+    >
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <GluestackUIProvider config={gluestackConfig} colorMode="dark">

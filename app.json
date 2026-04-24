@@ -41,6 +41,7 @@
       ]
     ],
     "scheme": "fitapp",
+    "newArchEnabled": true,
     "experiments": {
       "typedRoutes": true
     }
