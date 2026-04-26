@@ -154,10 +154,7 @@ function EditProfileModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-          >
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View
               style={{
                 backgroundColor: '#1a1a1a',
@@ -173,67 +170,73 @@ function EditProfileModal({
                 </TouchableOpacity>
               </View>
 
-              <Text className="mb-2 text-xs text-zinc-400">Name</Text>
-              <TextInput
-                testID="profile-name-input"
-                style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-4 rounded-xl px-4 py-3 text-white"
-                value={name}
-                onChangeText={setName}
-                autoFocus
-              />
-
-              <Text className="mb-2 text-xs text-zinc-400">
-                Current weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
-              </Text>
-              <TextInput
-                testID="profile-weight-input"
-                style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-4 rounded-xl px-4 py-3 text-white"
-                keyboardType="numeric"
-                placeholder={unitSystem === 'imperial' ? 'e.g. 165' : 'e.g. 75'}
-                placeholderTextColor="#52525b"
-                value={weight}
-                onChangeText={setWeight}
-              />
-
-              <Text className="mb-2 text-xs text-zinc-400">
-                Goal weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
-              </Text>
-              <TextInput
-                testID="profile-goal-weight-input"
-                style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-4 rounded-xl px-4 py-3 text-white"
-                keyboardType="numeric"
-                placeholder={unitSystem === 'imperial' ? 'e.g. 155' : 'e.g. 70'}
-                placeholderTextColor="#52525b"
-                value={goalWeight}
-                onChangeText={setGoalWeight}
-              />
-
-              <Text className="mb-2 text-xs text-zinc-400">Target date</Text>
-              <TextInput
-                testID="profile-goal-target-date-input"
-                style={{ backgroundColor: '#222222', color: '#fff' }}
-                className="mb-5 rounded-xl px-4 py-3 text-white"
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#52525b"
-                value={goalTargetDate}
-                onChangeText={setGoalTargetDate}
-              />
-
-              <TouchableOpacity
-                testID="save-changes-btn"
-                onPress={handleSave}
-                disabled={isPending}
-                className="items-center rounded-2xl bg-brand-400 py-4"
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 20 : 8 }}
               >
-                {isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-base font-semibold text-white">Save changes</Text>
-                )}
-              </TouchableOpacity>
+                <Text className="mb-2 text-xs text-zinc-400">Name</Text>
+                <TextInput
+                  testID="profile-name-input"
+                  style={{ backgroundColor: '#222222', color: '#fff' }}
+                  className="mb-4 rounded-xl px-4 py-3 text-white"
+                  value={name}
+                  onChangeText={setName}
+                  autoFocus
+                />
+
+                <Text className="mb-2 text-xs text-zinc-400">
+                  Current weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+                </Text>
+                <TextInput
+                  testID="profile-weight-input"
+                  style={{ backgroundColor: '#222222', color: '#fff' }}
+                  className="mb-4 rounded-xl px-4 py-3 text-white"
+                  keyboardType="numeric"
+                  placeholder={unitSystem === 'imperial' ? 'e.g. 165' : 'e.g. 75'}
+                  placeholderTextColor="#52525b"
+                  value={weight}
+                  onChangeText={setWeight}
+                />
+
+                <Text className="mb-2 text-xs text-zinc-400">
+                  Goal weight ({unitSystem === 'metric' ? 'kg' : 'lbs'})
+                </Text>
+                <TextInput
+                  testID="profile-goal-weight-input"
+                  style={{ backgroundColor: '#222222', color: '#fff' }}
+                  className="mb-4 rounded-xl px-4 py-3 text-white"
+                  keyboardType="numeric"
+                  placeholder={unitSystem === 'imperial' ? 'e.g. 155' : 'e.g. 70'}
+                  placeholderTextColor="#52525b"
+                  value={goalWeight}
+                  onChangeText={setGoalWeight}
+                />
+
+                <Text className="mb-2 text-xs text-zinc-400">Target date</Text>
+                <TextInput
+                  testID="profile-goal-target-date-input"
+                  style={{ backgroundColor: '#222222', color: '#fff' }}
+                  className="mb-5 rounded-xl px-4 py-3 text-white"
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#52525b"
+                  value={goalTargetDate}
+                  onChangeText={setGoalTargetDate}
+                />
+
+                <TouchableOpacity
+                  testID="save-changes-btn"
+                  onPress={handleSave}
+                  disabled={isPending}
+                  className="items-center rounded-2xl bg-brand-400 py-4"
+                >
+                  {isPending ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="text-base font-semibold text-white">Save changes</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
 
               <View style={{ height: Platform.OS === 'ios' ? 20 : 0 }} />
             </View>

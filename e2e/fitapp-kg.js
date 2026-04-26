@@ -19,7 +19,7 @@ const RESULTS_FILE = path.resolve(__dirname, '../playwright-report/results-kg.js
 fs.mkdirSync(SHOT_DIR, { recursive: true });
 
 async function injectAuth(ctx) {
-  await ctx.addInitScript(function() {
+  await ctx.addInitScript(function () {
     localStorage.setItem('fitapp_auth_token', 'dev-bypass-token');
     localStorage.setItem('fitapp_onboarded', 'true');
     // Ensure kg mode for this test suite
@@ -43,8 +43,13 @@ async function checkBackend() {
       var req = http.get(apiUrl + '/trpc/health', function (res) {
         resolve(res.statusCode < 500);
       });
-      req.setTimeout(3000, function () { req.destroy(); resolve(false); });
-      req.on('error', function () { resolve(false); });
+      req.setTimeout(3000, function () {
+        req.destroy();
+        resolve(false);
+      });
+      req.on('error', function () {
+        resolve(false);
+      });
     });
   } catch (e) {
     return false;
@@ -94,7 +99,10 @@ async function runKgFlow(page, prefix, results, backendAvailable) {
     await page.locator('[data-testid="add-food-btn"]').click({ timeout: 5000 });
     await page.waitForTimeout(500);
   } catch (e) {
-    try { await page.getByText('+ Add food').first().click({ timeout: 3000 }); await page.waitForTimeout(500); } catch (e2) {}
+    try {
+      await page.getByText('+ Add food').first().click({ timeout: 3000 });
+      await page.waitForTimeout(500);
+    } catch (e2) {}
   }
 
   try {
@@ -163,7 +171,10 @@ async function runKgFlow(page, prefix, results, backendAvailable) {
     var sc7f = await shot(page, prefix + '-07-start-fail');
     push('Workout: start session modal', 'fail', sc7f);
     // Try text fallback
-    try { await page.getByText('Start session').first().click({ timeout: 3000 }); await page.waitForTimeout(500); } catch (_) {}
+    try {
+      await page.getByText('Start session').first().click({ timeout: 3000 });
+      await page.waitForTimeout(500);
+    } catch (_) {}
   }
 
   // Session start + sets + finish — requires backend (workout.startSession / logSet / endSession)
@@ -231,7 +242,10 @@ async function runKgFlow(page, prefix, results, backendAvailable) {
     }
 
     try {
-      try { await page.keyboard.press('Escape'); await page.waitForTimeout(300); } catch (_) {}
+      try {
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+      } catch (_) {}
       await page.locator('[data-testid="finish-session-btn"]').click({ timeout: 5000 });
       await page.waitForTimeout(1500);
       var sc12 = await shot(page, prefix + '-12-session-complete');
@@ -287,7 +301,7 @@ async function runKgFlow(page, prefix, results, backendAvailable) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-(async function() {
+(async function () {
   var browser = await chromium.launch({ headless: true });
   var results = [];
 
@@ -312,12 +326,34 @@ async function runKgFlow(page, prefix, results, backendAvailable) {
 
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
 
-  var passed = results.filter(function(r) { return r.status === 'pass'; }).length;
-  var skipped = results.filter(function(r) { return r.status === 'skip'; }).length;
-  var failed = results.filter(function(r) { return r.status === 'fail'; }).length;
-  console.log('\n✅ ' + passed + ' passed  ⏭  ' + skipped + ' skipped  ❌ ' + failed + ' failed  (' + results.length + ' total)');
+  var passed = results.filter(function (r) {
+    return r.status === 'pass';
+  }).length;
+  var skipped = results.filter(function (r) {
+    return r.status === 'skip';
+  }).length;
+  var failed = results.filter(function (r) {
+    return r.status === 'fail';
+  }).length;
+  console.log(
+    '\n✅ ' +
+      passed +
+      ' passed  ⏭  ' +
+      skipped +
+      ' skipped  ❌ ' +
+      failed +
+      ' failed  (' +
+      results.length +
+      ' total)',
+  );
   if (failed > 0) {
-    results.filter(function(r) { return r.status === 'fail'; }).forEach(function(r) { console.log('  ❌ ' + r.name); });
+    results
+      .filter(function (r) {
+        return r.status === 'fail';
+      })
+      .forEach(function (r) {
+        console.log('  ❌ ' + r.name);
+      });
     process.exit(1);
   }
 })();
