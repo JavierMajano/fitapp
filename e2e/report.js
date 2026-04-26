@@ -34,7 +34,9 @@ const resultsReg = safeRead(REG_FILE);
 const all = [...resultsKg, ...resultsLbs, ...resultsReg];
 
 if (all.length === 0) {
-  console.error('No results found. Run fitapp-kg.js, fitapp-lbs.js, and/or fitapp-regression.js first.');
+  console.error(
+    'No results found. Run fitapp-kg.js, fitapp-lbs.js, and/or fitapp-regression.js first.',
+  );
   process.exit(1);
 }
 
@@ -59,8 +61,7 @@ function row(r) {
       : r.status === 'skip'
         ? 'rgba(161,161,170,0.03)'
         : 'rgba(248,113,113,0.05)';
-  const nameColor =
-    r.status === 'pass' ? '#d4d4d8' : r.status === 'skip' ? '#71717a' : '#f87171';
+  const nameColor = r.status === 'pass' ? '#d4d4d8' : r.status === 'skip' ? '#71717a' : '#f87171';
 
   return `
     <tr style="border-bottom:1px solid #2e2e2e;background:${rowBg}">
@@ -91,7 +92,10 @@ function section(key, rows) {
     label = 'Regression — ' + (isMobile ? '📱 iPhone 14' : '🖥️ Desktop');
   } else {
     emoji = isLbs ? '🏋️' : '⚖️';
-    label = (isLbs ? 'Imperial (lbs)' : 'Metric (kg)') + ' — ' + (isMobile ? '📱 iPhone 14' : '🖥️ Desktop');
+    label =
+      (isLbs ? 'Imperial (lbs)' : 'Metric (kg)') +
+      ' — ' +
+      (isMobile ? '📱 iPhone 14' : '🖥️ Desktop');
   }
 
   const sectionPassed = rows.filter((r) => r.status === 'pass').length;

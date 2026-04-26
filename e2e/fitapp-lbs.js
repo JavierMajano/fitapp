@@ -35,8 +35,13 @@ async function checkBackend() {
       var req = http.get(apiUrl + '/trpc/health', function (res) {
         resolve(res.statusCode < 500);
       });
-      req.setTimeout(3000, function () { req.destroy(); resolve(false); });
-      req.on('error', function () { resolve(false); });
+      req.setTimeout(3000, function () {
+        req.destroy();
+        resolve(false);
+      });
+      req.on('error', function () {
+        resolve(false);
+      });
     });
   } catch (e) {
     return false;
@@ -45,7 +50,7 @@ async function checkBackend() {
 
 /** Inject auth tokens only — unit pref is managed by the profile toggle + localStorage. */
 async function injectAuth(ctx) {
-  await ctx.addInitScript(function() {
+  await ctx.addInitScript(function () {
     localStorage.setItem('fitapp_auth_token', 'dev-bypass-token');
     localStorage.setItem('fitapp_onboarded', 'true');
   });
@@ -88,13 +93,16 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
     var lbsBtn = page.locator('[data-testid="unit-btn-lbs"]');
     await lbsBtn.waitFor({ state: 'visible', timeout: 5000 });
     var box = await lbsBtn.boundingBox();
-    if (!box || box.width < 10 || box.height < 10) throw new Error('lbs bbox: ' + JSON.stringify(box));
+    if (!box || box.width < 10 || box.height < 10)
+      throw new Error('lbs bbox: ' + JSON.stringify(box));
     var enabled = await lbsBtn.isEnabled();
     if (!enabled) throw new Error('lbs btn disabled/intercepted');
     var kgBox = await page.locator('[data-testid="unit-btn-kg"]').boundingBox();
     if (!kgBox || kgBox.width < 10) throw new Error('kg btn bbox too small');
     push('Profile: unit-btn-lbs visible + interactable, kg also visible', 'pass', sc1);
-  } catch (e) { push('Profile: unit-btn-lbs visible + interactable', 'fail', sc1); }
+  } catch (e) {
+    push('Profile: unit-btn-lbs visible + interactable', 'fail', sc1);
+  }
 
   var sc2;
   try {
@@ -146,7 +154,10 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
       await page.getByText('+ Add Set').first().click({ timeout: 5000 });
       await page.waitForTimeout(600);
     } catch (e) {
-      try { await page.getByText('Add Set').first().click({ timeout: 3000 }); await page.waitForTimeout(600); } catch (e2) {}
+      try {
+        await page.getByText('Add Set').first().click({ timeout: 3000 });
+        await page.waitForTimeout(600);
+      } catch (e2) {}
     }
 
     try {
@@ -163,9 +174,12 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
 
     try {
       var allText = await page.locator('body').innerText();
-      if (allText.toLowerCase().indexOf('weight (lbs)') === -1) throw new Error('No "Weight (lbs)"');
+      if (allText.toLowerCase().indexOf('weight (lbs)') === -1)
+        throw new Error('No "Weight (lbs)"');
       push('Workout: modal shows "Weight (lbs)"', 'pass', '');
-    } catch (e) { push('Workout: modal shows "Weight (lbs)"', 'fail', ''); }
+    } catch (e) {
+      push('Workout: modal shows "Weight (lbs)"', 'fail', '');
+    }
 
     var sc7;
     try {
@@ -201,7 +215,10 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
       push('Workout: column "LBS", set shows 220 (not 99.79)', 'fail', sc8);
     }
 
-    try { await page.getByText('Finish').first().click({ timeout: 5000 }); await page.waitForTimeout(800); } catch (e) {}
+    try {
+      await page.getByText('Finish').first().click({ timeout: 5000 });
+      await page.waitForTimeout(800);
+    } catch (e) {}
   }
 
   // ── 3. PROGRESS IN LBS ───────────────────────────────────────────────────
@@ -284,7 +301,7 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-(async function() {
+(async function () {
   var browser = await chromium.launch({ headless: true });
   var results = [];
 
@@ -309,12 +326,34 @@ async function runLbsFlow(page, prefix, results, backendAvailable) {
 
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(results, null, 2));
 
-  var passed = results.filter(function(r) { return r.status === 'pass'; }).length;
-  var skipped = results.filter(function(r) { return r.status === 'skip'; }).length;
-  var failed = results.filter(function(r) { return r.status === 'fail'; }).length;
-  console.log('\n✅ ' + passed + ' passed  ⏭  ' + skipped + ' skipped  ❌ ' + failed + ' failed  (' + results.length + ' total)');
+  var passed = results.filter(function (r) {
+    return r.status === 'pass';
+  }).length;
+  var skipped = results.filter(function (r) {
+    return r.status === 'skip';
+  }).length;
+  var failed = results.filter(function (r) {
+    return r.status === 'fail';
+  }).length;
+  console.log(
+    '\n✅ ' +
+      passed +
+      ' passed  ⏭  ' +
+      skipped +
+      ' skipped  ❌ ' +
+      failed +
+      ' failed  (' +
+      results.length +
+      ' total)',
+  );
   if (failed > 0) {
-    results.filter(function(r) { return r.status === 'fail'; }).forEach(function(r) { console.log('  ❌ ' + r.name); });
+    results
+      .filter(function (r) {
+        return r.status === 'fail';
+      })
+      .forEach(function (r) {
+        console.log('  ❌ ' + r.name);
+      });
     process.exit(1);
   }
 })();

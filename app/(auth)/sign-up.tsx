@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -113,10 +112,7 @@ export default function SignUpScreen() {
 
   return (
     <SafeAreaView className="bg-surface-DEFAULT flex-1">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
+      <KeyboardAvoidingView behavior="padding" className="flex-1">
         <View className="flex-1 justify-center px-6">
           {/* Brand */}
           <View className="mb-8 items-center">

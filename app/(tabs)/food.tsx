@@ -252,10 +252,7 @@ function AddFoodModal({ visible, onClose, defaultMeal, date, onLogged }: AddFood
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={handleClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-          >
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View
               style={{
                 backgroundColor: '#1a1a1a',
