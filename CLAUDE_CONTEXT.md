@@ -749,6 +749,25 @@ Next code phase: Phase 7 — TBD (push notifications, BullMQ TDEE recalc, native
 
 ---
 
+## Known npm Deprecation Limitations
+
+These `npm warn deprecated` messages appear during `npm install` and **cannot be fixed** until upstream dependencies update:
+
+| Package                                | Source                               | Fix                              |
+| -------------------------------------- | ------------------------------------ | -------------------------------- |
+| `@babel/plugin-proposal-*` (8 plugins) | `@react-native/babel-preset@0.74.87` | Resolves with React Native 0.75+ |
+| `rimraf@2.x / 3.x`, `glob@7.x`         | Transitive build tools               | Resolves with tool upgrades      |
+| `@xmldom/xmldom@0.7.x`                 | Transitive (no direct dep)           | Resolves with upstream update    |
+| `tar@6.x`                              | Transitive build tool                | Resolves with tool upgrade       |
+
+**Direct dependency status (2026-04-26):**
+
+- `eslint` — upgraded to v9.0.0 (PR #30), flat config in `eslint.config.js`
+- `@babel/core` — upgraded to ^7.25.0 (resolves to 7.29.0)
+- `@types/react-native` — removed; React Native 0.74+ provides native types
+
+---
+
 ## Instructions for Claude Code
 
 - Always work in feature branches off `dev`
