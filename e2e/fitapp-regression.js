@@ -10,8 +10,9 @@
  *   F — Progress tab (weight/calorie charts, log weight, range switch)
  *   G — Profile tab (edit name/goalWeight, stats, sign-out)
  *   H — Unit system integration (lbs ↔ kg across all tabs)
+ *   I — Session persistence (cold start + reload stay on dashboard)
  *
- * ~65 assertions per device × 2 devices (Desktop + iPhone 14) ≈ 130 total.
+ * ~67 assertions per device × 2 devices (Desktop + iPhone 14) ≈ 134 total.
  *
  * Run:   node e2e/fitapp-regression.js
  * Needs: Expo web server on E2E_URL (default http://localhost:8081)
@@ -1149,6 +1150,62 @@ async function suiteG(page, prefix, results, creds) {
   }
 }
 
+// ── Suite I — Session Persistence ────────────────────────────────────────────
+// Verifies that a logged-in, onboarded user lands on the dashboard (not
+// onboarding) on cold start AND after a full page reload.
+
+async function suiteI(browser, prefix, results, deviceConfig, token) {
+  function push(name, status, sc) {
+    results.push({ name: '[' + prefix + '][I] ' + name, status: status, screenshot: sc || null });
+    console.log((status === 'pass' ? '  ✓' : status === 'skip' ? '  ⏭' : '  ✗') + ' I: ' + name);
+  }
+
+  console.log('\n  [Suite I — Session Persistence]');
+  var ctx = await browser.newContext(deviceConfig);
+  await injectAuth(ctx, token);
+  var page = await ctx.newPage();
+
+  // I1: Cold start → lands on dashboard, not onboarding
+  try {
+    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForSelector(td('dashboard-greeting'), { timeout: 12000 });
+    var onboardInput = await page.locator(td('onboard-name-input')).count();
+    if (onboardInput > 0) throw new Error('Onboarding screen appeared on cold start');
+    push(
+      'Session: cold start lands on dashboard, not onboarding',
+      'pass',
+      await shot(page, prefix + '-I1-cold-start'),
+    );
+  } catch (e) {
+    push(
+      'Session: cold start lands on dashboard, not onboarding',
+      'fail',
+      await shot(page, prefix + '-I1-fail'),
+    );
+  }
+
+  // I2: Full page reload → still on dashboard, not redirected to onboarding
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForSelector(td('dashboard-greeting'), { timeout: 12000 });
+    var onboardInputAfterReload = await page.locator(td('onboard-name-input')).count();
+    if (onboardInputAfterReload > 0) throw new Error('Onboarding appeared after reload');
+    push(
+      'Session: page reload stays on dashboard (onboarded flag persists)',
+      'pass',
+      await shot(page, prefix + '-I2-after-reload'),
+    );
+  } catch (e) {
+    push(
+      'Session: page reload stays on dashboard (onboarded flag persists)',
+      'fail',
+      await shot(page, prefix + '-I2-fail'),
+    );
+  }
+
+  await ctx.close();
+}
+
 // ── Suite H — Unit System Integration ────────────────────────────────────────
 // Fresh authenticated context — tests lbs ↔ kg across Progress, Workout, Dashboard, Profile.
 
@@ -1411,6 +1468,9 @@ async function suiteH(browser, prefix, results, deviceConfig, token) {
 
     // Suite H — Unit system (fresh auth context after sign-out)
     await suiteH(browser, prefix, results, deviceConfig, mainCreds.token);
+
+    // Suite I — Session persistence (reload test)
+    await suiteI(browser, prefix, results, deviceConfig, mainCreds.token);
   }
 
   await browser.close();

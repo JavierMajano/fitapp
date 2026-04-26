@@ -44,7 +44,7 @@ interface AuthState {
   isOnboarded: boolean;
   hydrate: () => Promise<void>;
   setAuth: (user: User, token: string) => Promise<void>;
-  setUser: (user: User) => void;
+  setUser: (user: User) => Promise<void>;
   setOnboarded: (value: boolean) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -72,7 +72,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user, token, isOnboarded: onboarded });
   },
 
-  setUser: (user: User) => set({ user, isOnboarded: user.goalMode !== null }),
+  setUser: async (user: User) => {
+    const onboarded = user.goalMode !== null;
+    await storage.setItem(ONBOARDED_KEY, String(onboarded));
+    set({ user, isOnboarded: onboarded });
+  },
 
   setOnboarded: async (value: boolean) => {
     await storage.setItem(ONBOARDED_KEY, String(value));
