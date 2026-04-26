@@ -1,6 +1,7 @@
 /* eslint-disable */
 const { FlatCompat } = require('@eslint/eslintrc');
 const js = require('@eslint/js');
+const globals = require('globals');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
 
 const compat = new FlatCompat({
@@ -21,6 +22,10 @@ module.exports = [
     ],
   },
   ...compat.extends('expo', 'prettier'),
+  {
+    files: ['*.config.js', 'metro.config.js'],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
