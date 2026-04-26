@@ -28,6 +28,7 @@
   "dependencies": {
     "@gluestack-style/react": "^1.0.57",
     "@gluestack-ui/themed": "^1.1.51",
+    "@react-native-community/datetimepicker": "8.0.1",
     "@sentry/react-native": "~5.24.3",
     "@tanstack/react-query": "^5.40.0",
     "@trpc/client": "^11.0.0",

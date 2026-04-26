@@ -1,3 +1,4 @@
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,7 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getPresetDates, formatTargetDate, getPaceLabel } from '@/lib/goalCalculations';
+import {
+  getPresetDates,
+  formatTargetDate,
+  getPaceLabel,
+  evaluateDatePace,
+} from '@/lib/goalCalculations';
 import { trpc } from '@/lib/trpc';
 import {
   type UnitSystem,
@@ -240,6 +246,7 @@ export default function OnboardingScreen() {
   });
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
   const [error, setError] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const completeOnboard = trpc.user.completeOnboard.useMutation({
     onSuccess: (updatedUser) => {
@@ -526,7 +533,7 @@ export default function OnboardingScreen() {
                 />
               </View>
 
-              {/* Preset date buttons */}
+              {/* Preset date buttons + custom date picker + pace feedback */}
               {form.goalWeightKg && !error ? (
                 <View className="mb-6">
                   <Text className="mb-3 text-sm text-zinc-400">Target date</Text>
@@ -542,63 +549,152 @@ export default function OnboardingScreen() {
                       unitSystem,
                     );
                     const paceNames: ('slow' | 'normal' | 'fast')[] = ['slow', 'normal', 'fast'];
+                    const presetIsos = [presets.slow, presets.normal, presets.fast];
+                    const customDateSelected =
+                      !!form.goalTargetDate && !presetIsos.includes(form.goalTargetDate);
+
+                    const handleDateChange = (_event: DateTimePickerEvent, date?: Date) => {
+                      if (Platform.OS === 'android') setShowDatePicker(false);
+                      if (date) set('goalTargetDate', date.toISOString());
+                    };
 
                     return (
-                      <View className="gap-2">
-                        {paceNames.map((pace) => {
-                          const isoDate = presets[pace];
-                          const isSelected = form.goalTargetDate === isoDate;
-                          const label = getPaceLabel(
-                            currentWeight,
-                            goalWeight,
-                            form.goalMode,
-                            unitSystem,
-                            pace,
-                          );
-                          const dateStr = formatTargetDate(isoDate);
+                      <>
+                        {/* Preset pace buttons */}
+                        <View className="gap-2">
+                          {paceNames.map((pace) => {
+                            const isoDate = presets[pace];
+                            const isSelected = form.goalTargetDate === isoDate;
+                            const label = getPaceLabel(
+                              currentWeight,
+                              goalWeight,
+                              form.goalMode,
+                              unitSystem,
+                              pace,
+                            );
+                            const dateStr = formatTargetDate(isoDate);
+                            return (
+                              <TouchableOpacity
+                                key={pace}
+                                testID={`onboard-preset-${pace}`}
+                                onPress={() => {
+                                  set('goalTargetDate', isoDate);
+                                  setShowDatePicker(false);
+                                }}
+                                className={`rounded-xl border p-4 ${
+                                  isSelected
+                                    ? 'border-brand-400 bg-brand-400/10'
+                                    : 'border-surface-border bg-surface-card'
+                                }`}
+                              >
+                                <Text
+                                  className={`text-sm font-medium ${isSelected ? 'text-brand-400' : 'text-zinc-300'}`}
+                                >
+                                  {pace.charAt(0).toUpperCase() + pace.slice(1)} — {label}
+                                </Text>
+                                <Text
+                                  className={`mt-1 text-xs ${isSelected ? 'text-brand-400/80' : 'text-zinc-500'}`}
+                                >
+                                  {dateStr}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
 
-                          return (
-                            <TouchableOpacity
-                              key={pace}
-                              testID={`onboard-preset-${pace}`}
-                              onPress={() => set('goalTargetDate', isoDate)}
-                              className={`rounded-xl border p-4 ${
-                                isSelected
-                                  ? 'border-brand-400 bg-brand-400/10'
-                                  : 'border-surface-border bg-surface-card'
-                              }`}
+                        {/* Custom date picker */}
+                        <View className="mt-3">
+                          <Text className="mb-2 text-sm text-zinc-400">Or pick a custom date</Text>
+                          <TouchableOpacity
+                            testID="onboard-custom-date-btn"
+                            onPress={() => setShowDatePicker((v) => !v)}
+                            className={`rounded-xl border p-4 ${
+                              customDateSelected
+                                ? 'border-brand-400 bg-brand-400/10'
+                                : 'border-surface-border bg-surface-card'
+                            }`}
+                          >
+                            <Text
+                              className={`text-sm ${customDateSelected ? 'text-brand-400' : 'text-zinc-400'}`}
                             >
-                              <Text
-                                className={`text-sm font-medium ${isSelected ? 'text-brand-400' : 'text-zinc-300'}`}
-                              >
-                                {pace.charAt(0).toUpperCase() + pace.slice(1)} — {label}
-                              </Text>
-                              <Text
-                                className={`mt-1 text-xs ${isSelected ? 'text-brand-400/80' : 'text-zinc-500'}`}
-                              >
-                                {dateStr}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                              {customDateSelected
+                                ? formatTargetDate(form.goalTargetDate!)
+                                : 'Tap to choose a date…'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          {/* Native date picker (iOS wheel / Android calendar dialog) */}
+                          {showDatePicker && Platform.OS !== 'web' && (
+                            <DateTimePicker
+                              testID="onboard-date-picker"
+                              value={
+                                form.goalTargetDate ? new Date(form.goalTargetDate) : new Date()
+                              }
+                              mode="date"
+                              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                              minimumDate={new Date()}
+                              onChange={handleDateChange}
+                            />
+                          )}
+
+                          {/* Web fallback: text input (YYYY-MM-DD) */}
+                          {showDatePicker && Platform.OS === 'web' && (
+                            <TextInput
+                              testID="onboard-custom-date-input"
+                              className="mt-2 rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
+                              placeholder="YYYY-MM-DD"
+                              placeholderTextColor="#52525b"
+                              value={
+                                form.goalTargetDate
+                                  ? new Date(form.goalTargetDate).toISOString().slice(0, 10)
+                                  : ''
+                              }
+                              onChangeText={(v) => {
+                                const d = new Date(v);
+                                if (!isNaN(d.getTime())) set('goalTargetDate', d.toISOString());
+                              }}
+                            />
+                          )}
+                        </View>
+
+                        {/* Pace feedback banner — shown for any selected date */}
+                        {form.goalTargetDate
+                          ? (() => {
+                              const paceEval = evaluateDatePace(
+                                currentWeight,
+                                goalWeight,
+                                form.goalMode,
+                                form.goalTargetDate,
+                                unitSystem,
+                              );
+                              return (
+                                <View
+                                  testID="onboard-pace-feedback"
+                                  className="mt-4 rounded-xl p-4"
+                                  style={{
+                                    backgroundColor: paceEval.color + '1a',
+                                    borderWidth: 1,
+                                    borderColor: paceEval.color + '40',
+                                  }}
+                                >
+                                  <Text
+                                    className="text-sm font-semibold"
+                                    style={{ color: paceEval.color }}
+                                  >
+                                    {paceEval.label}
+                                  </Text>
+                                  <Text className="mt-0.5 text-xs text-zinc-400">
+                                    {paceEval.hint}
+                                  </Text>
+                                </View>
+                              );
+                            })()
+                          : null}
+                      </>
                     );
                   })()}
                 </View>
               ) : null}
-
-              {/* Manual date input fallback */}
-              <View>
-                <Text className="mb-2 text-sm text-zinc-400">Or enter a custom date</Text>
-                <TextInput
-                  testID="onboard-custom-date-input"
-                  className="rounded-xl border border-surface-border bg-surface-card px-4 py-3.5 text-base text-white"
-                  placeholder="2026-06-15T00:00:00Z"
-                  placeholderTextColor="#52525b"
-                  value={form.goalTargetDate}
-                  onChangeText={(v) => set('goalTargetDate', v)}
-                />
-              </View>
             </View>
           )}
 
