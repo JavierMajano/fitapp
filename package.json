@@ -27,10 +27,12 @@
   "dependencies": {
     "@gluestack-style/react": "^1.0.57",
     "@gluestack-ui/themed": "^1.1.51",
+    "@react-native-community/datetimepicker": "^7.6.2",
     "@sentry/react-native": "~5.24.3",
     "@tanstack/react-query": "^5.40.0",
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
+    "@trpc/server": "^11.16.0",
     "expo": "~51.0.0",
     "expo-auth-session": "~5.5.2",
     "expo-camera": "~15.0.0",
