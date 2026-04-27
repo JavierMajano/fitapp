@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { DateNav } from '@/components/DateNav';
-import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import type { MealType } from '@/store/fitlog';
 import { useToastStore } from '@/store/toast';
 

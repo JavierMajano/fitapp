@@ -15,10 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoalWeightWidget } from '@/components/GoalWeightWidget';
 import { ProgressChartWidget } from '@/components/ProgressChartWidget';
-import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
 import { kgToLbs, toMetricWeight } from '@/lib/units';
 import type { UnitSystem } from '@/lib/units';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import type { GoalMode, User } from '@/store/auth';
 import { useAuthStore } from '@/store/auth';
 import { useToastStore } from '@/store/toast';

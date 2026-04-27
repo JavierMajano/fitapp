@@ -15,9 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DateNav } from '@/components/DateNav';
-import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
 import { displayWeight, toMetricWeight } from '@/lib/units';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
 

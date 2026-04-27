@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
 import { displayWeight, toMetricWeight, WEIGHT_BOUNDS, type UnitSystem } from '@/lib/units';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
 
