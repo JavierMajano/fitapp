@@ -183,6 +183,7 @@ export type DbSessionSet = {
   completed: boolean;
   loggedAt: Date;
   editedAt: Date | null;
+  exercise?: { name: string };
 };
 
 export type DbWorkoutSession = {
@@ -356,7 +357,12 @@ export async function getSessionsByDate(
 
   const dbSessions = await db.workoutSession.findMany({
     where: { userId, startedAt: { gte: start, lt: end } },
-    include: { sets: { orderBy: [{ setNumber: 'asc' }] } },
+    include: {
+      sets: {
+        include: { exercise: { select: { name: true } } },
+        orderBy: [{ setNumber: 'asc' }],
+      },
+    },
     orderBy: { startedAt: 'desc' },
   });
 

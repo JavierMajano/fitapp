@@ -485,6 +485,7 @@ interface DbSet {
   setNumber: number;
   weightKg: number | null;
   reps: number | null;
+  exercise?: { name: string };
 }
 
 interface DbSession {
@@ -502,7 +503,19 @@ function SessionCard({ session }: { session: DbSession }) {
   const durationMs = endTs ? endTs - startTs : 0;
   const duration = endTs ? formatDuration(durationMs) : 'in progress';
   const totalSets = session.sets.length;
-  const topWeight = Math.max(...session.sets.map((s) => s.weightKg ?? 0), 0);
+
+  // Group sets by exercise name for the breakdown display
+  const exerciseGroups = session.sets.reduce<
+    Record<string, { sets: number; topWeightKg: number }>
+  >((acc, s) => {
+    const name = s.exercise?.name ?? 'Unknown';
+    if (!acc[name]) acc[name] = { sets: 0, topWeightKg: 0 };
+    acc[name]!.sets++;
+    if ((s.weightKg ?? 0) > acc[name]!.topWeightKg) acc[name]!.topWeightKg = s.weightKg ?? 0;
+    return acc;
+  }, {});
+
+  const exerciseEntries = Object.entries(exerciseGroups);
 
   return (
     <View
@@ -520,10 +533,23 @@ function SessionCard({ session }: { session: DbSession }) {
           <Text className="text-xs font-medium text-brand-400">Done</Text>
         </View>
       </View>
-      {topWeight > 0 && (
-        <Text className="mt-2 text-xs text-zinc-500">
-          Top weight: {displayWeight(topWeight, unitSystem)}
-        </Text>
+
+      {exerciseEntries.length > 0 && (
+        <View className="mt-3 border-t border-surface-border pt-3">
+          {exerciseEntries.map(([name, stats]) => (
+            <View key={name} className="mb-1 flex-row items-center justify-between">
+              <Text className="flex-1 text-xs text-zinc-300" numberOfLines={1}>
+                {name}
+              </Text>
+              <Text className="ml-2 text-xs text-zinc-500">
+                {stats.sets} {stats.sets === 1 ? 'set' : 'sets'}
+                {stats.topWeightKg > 0
+                  ? ` · ${displayWeight(stats.topWeightKg, unitSystem)}`
+                  : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );

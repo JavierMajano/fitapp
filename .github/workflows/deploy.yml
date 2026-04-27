@@ -25,6 +25,40 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
 
+  seed-db:
+    name: Seed Database (exercises + routines)
+    needs: deploy-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Wait for server to apply migrations
+        run: sleep 60
+      - name: Seed database (staging)
+        if: github.ref == 'refs/heads/dev'
+        # railway run injects Railway service env vars (DATABASE_URL, REDIS_URL, etc.)
+        # then executes the command locally — seed connects directly to Railway Postgres.
+        run: railway run --service fitapp-server -- npx prisma migrate deploy && railway run --service fitapp-server -- npx tsx prisma/seed.ts
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      - name: Seed database (production)
+        if: github.ref == 'refs/heads/main'
+        run: railway run --service fitapp-server -- npx prisma migrate deploy && railway run --service fitapp-server -- npx tsx prisma/seed.ts
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
+
   deploy-web:
     name: Deploy Web Frontend
     runs-on: ubuntu-latest
