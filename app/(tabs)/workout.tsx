@@ -505,15 +505,16 @@ function SessionCard({ session }: { session: DbSession }) {
   const totalSets = session.sets.length;
 
   // Group sets by exercise name for the breakdown display
-  const exerciseGroups = session.sets.reduce<
-    Record<string, { sets: number; topWeightKg: number }>
-  >((acc, s) => {
-    const name = s.exercise?.name ?? 'Unknown';
-    if (!acc[name]) acc[name] = { sets: 0, topWeightKg: 0 };
-    acc[name]!.sets++;
-    if ((s.weightKg ?? 0) > acc[name]!.topWeightKg) acc[name]!.topWeightKg = s.weightKg ?? 0;
-    return acc;
-  }, {});
+  const exerciseGroups = session.sets.reduce<Record<string, { sets: number; topWeightKg: number }>>(
+    (acc, s) => {
+      const name = s.exercise?.name ?? 'Unknown';
+      if (!acc[name]) acc[name] = { sets: 0, topWeightKg: 0 };
+      acc[name]!.sets++;
+      if ((s.weightKg ?? 0) > acc[name]!.topWeightKg) acc[name]!.topWeightKg = s.weightKg ?? 0;
+      return acc;
+    },
+    {},
+  );
 
   const exerciseEntries = Object.entries(exerciseGroups);
 
@@ -543,9 +544,7 @@ function SessionCard({ session }: { session: DbSession }) {
               </Text>
               <Text className="ml-2 text-xs text-zinc-500">
                 {stats.sets} {stats.sets === 1 ? 'set' : 'sets'}
-                {stats.topWeightKg > 0
-                  ? ` · ${displayWeight(stats.topWeightKg, unitSystem)}`
-                  : ''}
+                {stats.topWeightKg > 0 ? ` · ${displayWeight(stats.topWeightKg, unitSystem)}` : ''}
               </Text>
             </View>
           ))}
