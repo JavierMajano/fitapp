@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { trpc } from '@/lib/trpc';
 import { displayWeight, toMetricWeight, WEIGHT_BOUNDS, type UnitSystem } from '@/lib/units';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { useToastStore } from '@/store/toast';
 import { useUnitsStore } from '@/store/units';
 
@@ -135,6 +136,7 @@ interface LogWeightModalProps {
 
 function LogWeightModal({ visible, onClose, onLog, unitSystem, isPending }: LogWeightModalProps) {
   const [weight, setWeight] = useState('');
+  const keyboardHeight = useKeyboardHeight();
   const today = todayKey();
   const unitLabel = unitSystem === 'metric' ? 'kg' : 'lbs';
   const maxVal = WEIGHT_BOUNDS[unitSystem].max;
@@ -152,7 +154,10 @@ function LogWeightModal({ visible, onClose, onLog, unitSystem, isPending }: LogW
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardHeight }}
+          >
             <View
               style={{
                 backgroundColor: '#1a1a1a',

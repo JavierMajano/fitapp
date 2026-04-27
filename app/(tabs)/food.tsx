@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { DateNav } from '@/components/DateNav';
 import { trpc } from '@/lib/trpc';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import type { MealType } from '@/store/fitlog';
 import { useToastStore } from '@/store/toast';
 
@@ -137,6 +138,8 @@ function AddFoodModal({ visible, onClose, defaultMeal, date, onLogged }: AddFood
   const [showScanner, setShowScanner] = useState(false);
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const showError = useToastStore((s) => s.showError);
+  const searchInputRef = useRef<TextInput>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   // Debounce query
   const handleQueryChange = useCallback((text: string) => {
@@ -249,10 +252,19 @@ function AddFoodModal({ visible, onClose, defaultMeal, date, onLogged }: AddFood
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={handleClose}
+      onShow={() => searchInputRef.current?.focus()}
+    >
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={handleClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardHeight }}
+          >
             <View
               style={{
                 backgroundColor: '#1a1a1a',
@@ -283,6 +295,7 @@ function AddFoodModal({ visible, onClose, defaultMeal, date, onLogged }: AddFood
                   {/* Search row */}
                   <View className="mb-3 flex-row gap-2">
                     <TextInput
+                      ref={searchInputRef}
                       testID="food-search-input"
                       className="flex-1 rounded-xl px-4 py-3 text-white"
                       style={{ backgroundColor: '#222222', color: '#fff' }}
@@ -290,7 +303,6 @@ function AddFoodModal({ visible, onClose, defaultMeal, date, onLogged }: AddFood
                       placeholderTextColor="#52525b"
                       value={query}
                       onChangeText={handleQueryChange}
-                      autoFocus
                     />
                     <TouchableOpacity
                       testID="barcode-scanner-btn"
