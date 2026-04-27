@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GoalWeightWidget } from '@/components/GoalWeightWidget';
 import { ProgressChartWidget } from '@/components/ProgressChartWidget';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
 import { kgToLbs, toMetricWeight } from '@/lib/units';
 import type { UnitSystem } from '@/lib/units';
@@ -113,6 +114,7 @@ function EditProfileModal({
   isPending,
 }: EditProfileModalProps) {
   const [name, setName] = useState(initialName);
+  const keyboardHeight = useKeyboardHeight();
   const [weight, setWeight] = useState(
     initialWeightKg
       ? unitSystem === 'imperial'
@@ -154,7 +156,10 @@ function EditProfileModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardHeight }}
+          >
             <View
               style={{
                 backgroundColor: '#1a1a1a',

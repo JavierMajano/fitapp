@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DateNav } from '@/components/DateNav';
+import { useKeyboardHeight } from '@/lib/useKeyboardHeight';
 import { trpc } from '@/lib/trpc';
 import { displayWeight, toMetricWeight } from '@/lib/units';
 import { useToastStore } from '@/store/toast';
@@ -104,6 +105,7 @@ function StartSessionModal({
   isPending,
 }: StartSessionModalProps) {
   const [name, setName] = useState('');
+  const keyboardHeight = useKeyboardHeight();
 
   function handleStart(sessionName: string, routineId?: string) {
     if (!sessionName.trim()) return;
@@ -115,7 +117,10 @@ function StartSessionModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={onClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardHeight }}
+          >
             <View
               style={{
                 backgroundColor: '#1a1a1a',
@@ -207,6 +212,7 @@ function LogSetModal({
 }: LogSetModalProps) {
   const [exerciseQuery, setExerciseQuery] = useState('');
   const [selectedExercise, setSelectedExercise] = useState('');
+  const keyboardHeight = useKeyboardHeight();
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
   const [step, setStep] = useState<'exercise' | 'details'>('exercise');
@@ -240,7 +246,10 @@ function LogSetModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={resetAndClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)' }} onPress={resetAndClose}>
         <Pressable onPress={() => {}} style={{ flex: 1 }}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboardHeight }}
+          >
             <View
               style={{
                 backgroundColor: '#1a1a1a',
