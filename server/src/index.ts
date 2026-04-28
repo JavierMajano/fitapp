@@ -8,6 +8,7 @@ import express from 'express';
 
 import { authHandler } from './auth';
 import { createContext } from './context';
+import { db } from './db';
 import { appRouter } from './router';
 
 const app = express();
@@ -28,9 +29,10 @@ app.use(express.json());
 // Auth.js routes — must be mounted before tRPC
 app.use('/auth/*', authHandler);
 
-// Direct health check for Railway load balancer
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+// Direct health check for Railway load balancer — includes exerciseCount for staging diagnostics
+app.get('/health', async (_req, res) => {
+  const exerciseCount = await db.exercise.count();
+  res.json({ status: 'ok', exerciseCount });
 });
 
 app.get('/', (_req, res) => {
@@ -61,4 +63,13 @@ Sentry.setupExpressErrorHandler(app);
 
 app.listen(PORT, '0.0.0.0', function () {
   console.warn(`[server] Running on port ${PORT}`);
+  db.exercise.count().then((exerciseCount) => {
+    db.routine.count().then((routineCount) => {
+      if (exerciseCount === 0) {
+        console.warn('[startup] WARNING: exercises table is empty — run prisma/seed.ts');
+      } else {
+        console.warn(`[startup] DB ready: ${exerciseCount} exercises, ${routineCount} routines`);
+      }
+    });
+  });
 });

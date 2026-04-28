@@ -44,17 +44,27 @@ jobs:
         run: npm install -g @railway/cli
       - name: Wait for server to apply migrations
         run: sleep 60
-      - name: Seed database (staging)
+      - name: Run migrations (staging)
         if: github.ref == 'refs/heads/dev'
-        # railway run injects Railway service env vars (DATABASE_URL, REDIS_URL, etc.)
-        # then executes the command locally — seed connects directly to Railway Postgres.
-        run: railway run --service fitapp-server -- npx prisma migrate deploy && railway run --service fitapp-server -- npx tsx prisma/seed.ts
+        run: railway run --service fitapp-server -- npx prisma migrate deploy
         working-directory: server
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
-      - name: Seed database (production)
+      - name: Seed exercises + routines (staging)
+        if: github.ref == 'refs/heads/dev'
+        run: railway run --service fitapp-server -- npx tsx prisma/seed.ts
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      - name: Run migrations (production)
         if: github.ref == 'refs/heads/main'
-        run: railway run --service fitapp-server -- npx prisma migrate deploy && railway run --service fitapp-server -- npx tsx prisma/seed.ts
+        run: railway run --service fitapp-server -- npx prisma migrate deploy
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
+      - name: Seed exercises + routines (production)
+        if: github.ref == 'refs/heads/main'
+        run: railway run --service fitapp-server -- npx tsx prisma/seed.ts
         working-directory: server
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
